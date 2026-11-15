@@ -500,10 +500,18 @@ class LunarScene {
     return null;
   }
   _bind() {
-    const el = this.canvas; let drag = null;
+    // one finger / mouse drags the camera; two fingers pinch to zoom (same zoom as the mouse wheel)
+    const el = this.canvas, pts = new Map(); let drag = null, pinch = null;
+    const spread = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
     this._ro = new ResizeObserver(() => this._resize()); this._ro.observe(el.parentElement);
-    el.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; el.setPointerCapture(e.pointerId); });
+    el.addEventListener('pointerdown', e => {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); el.setPointerCapture(e.pointerId);
+      if (pts.size >= 2) { pinch = { d: spread() }; drag = null; if (this.hover) { this.hover = null; this.onHover?.(null); } return; }
+      drag = { x: e.clientX, y: e.clientY, moved: 0 };
+    });
     el.addEventListener('pointermove', e => {
+      if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && pts.size >= 2) { const d = spread(); this._zoomBy(pinch.d / d); pinch.d = d; return; }
       const b = el.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
       if (!drag) { const h = this._pick(x, y); if ((h && h.type) !== (this.hover && this.hover.type) || (h && h.site) !== (this.hover && this.hover.site)) { this.hover = h; this.onHover?.(h); } el.style.cursor = h ? 'pointer' : 'grab'; return; }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
@@ -512,8 +520,18 @@ class LunarScene {
       else { const v = this.views[this.compare ? 'transit' : this.scale], right = V3().crossVectors(v.up, v.dir).normalize(); this._goal = null; v.dir.applyAxisAngle(v.up, -dx * .005).applyAxisAngle(right, -dy * .005).normalize(); v.up.applyAxisAngle(right, -dy * .005); v.up.addScaledVector(v.dir, -v.up.dot(v.dir)).normalize(); }
       if (drag.moved > 4 && this.hover) { this.hover = null; this.onHover?.(null); }
     });
-    el.addEventListener('pointerup', e => { const b = el.getBoundingClientRect(); if (drag && drag.moved < 5) { const h = this._pick(e.clientX - b.left, e.clientY - b.top); this.onPick?.(h); } drag = null; });
-    el.addEventListener('wheel', e => { e.preventDefault(); const f = Math.exp(e.deltaY * .0012); if (this.compare ? this.compareMode !== 'route' : this.scale === 'surface') this.surfaceView.fov = clamp(this.surfaceView.fov * f, 14, 75); else { const v = this.views[this.compare ? 'transit' : this.scale]; v.zoom = clamp(v.zoom * f, .2, 5); } }, { passive: false });
+    const release = e => {
+      pts.delete(e.pointerId);
+      if (pinch) { if (pts.size < 2) { pinch = null; const p = [...pts.values()][0]; drag = p ? { x: p.x, y: p.y, moved: 99 } : null; } return; } // the remaining finger keeps dragging, never taps
+      const b = el.getBoundingClientRect(); if (drag && drag.moved < 5 && e.type === 'pointerup') { const h = this._pick(e.clientX - b.left, e.clientY - b.top); this.onPick?.(h); } drag = null;
+    };
+    el.addEventListener('pointerup', release); el.addEventListener('pointercancel', release);
+    el.addEventListener('wheel', e => { e.preventDefault(); this._zoomBy(Math.exp(e.deltaY * .0012)); }, { passive: false });
+  }
+  /** Zoom by factor f (>1 out, <1 in): field of view at the surface and in surface comparisons, distance elsewhere. */
+  _zoomBy(f) {
+    if (this.compare ? this.compareMode !== 'route' : this.scale === 'surface') { this.surfaceView.fov = clamp(this.surfaceView.fov * f, 14, 75); if (!this.compare) { this._userLook = true; this._settle = false; } }
+    else { const v = this.views[this.compare ? 'transit' : this.scale]; v.zoom = clamp(v.zoom * f, .2, 5); }
   }
 }
 export { LunarScene };

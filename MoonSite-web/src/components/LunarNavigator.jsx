@@ -20,7 +20,7 @@ export default class LunarNavigator extends React.Component {
   KF = [0, .09, .38, .5, 1];
   SPEEDS = [[3600, '1 h/s'], [21600, '6 h/s'], [86400, '1 d/s']];
   componentDidMount() { this.boot(); window.addEventListener('keydown', this.onKey); }
-  componentWillUnmount() { this._unmounted = true; window.removeEventListener('keydown', this.onKey); Sound.engine(0); this._mro?.disconnect(); clearTimeout(this._bt); clearTimeout(this._gt); clearTimeout(this._cutT); clearTimeout(this._skipT); this.scene?.dispose(); }
+  componentWillUnmount() { this._unmounted = true; window.removeEventListener('keydown', this.onKey); Sound.engine(0); this._mro?.disconnect(); clearTimeout(this._bt); clearTimeout(this._gt); clearTimeout(this._cutT); this.scene?.dispose(); }
   componentDidUpdate() { this._els = null; this.applyLang(); this.posTut(); this._pst = null; }
   reduce() { return this.state.reduce ?? this.props.reduceMotion ?? false; }
   explainOn() { return this.state.explain ?? this.props.explain ?? false; }
@@ -121,7 +121,7 @@ export default class LunarNavigator extends React.Component {
     else if (this.tw) { const w = this.tw; w.k = Math.min(1, w.k + dt / w.dur); const e = w.k < .5 ? 2 * w.k * w.k : 1 - Math.pow(-2 * w.k + 2, 2) / 2; this.t = w.a + (w.b - w.a) * e; if (w.k >= 1) this.tw = null; }
     else if (this.state.playing) {
       const prev = this.t; const rate = Math.min(this.SPEEDS[this.state.speedIdx][0], LunarUI.eventRate(pl, this.t)); this.slow = rate < this.SPEEDS[this.state.speedIdx][0]; this.t = Math.min(pl.tEnd, this.t + dt * rate * 1000); for (const ev of [pl.tTLI - 240000, pl.tA - 90 * 60000, pl.tA - 240000, pl.tLand - (S.DEORBIT_S + 40) * 1000, pl.tLand - 840000, pl.tLand - 150000]) if (prev < ev && this.t > ev) this.t = ev + 1;
-      if (!this.state.compare) { const MN = 60000, x = e2 => prev < e2 && this.t >= e2; if (x(pl.tTLI + 6 * MN) && this.state.pov) this.setCam(true, false); /* on board through the translunar burn and stage separation, then pull back to show the route */ if (x(pl.tLand - 13 * MN)) { if (this.state.scale !== 'transit') this.goScale('transit', true); this.setCam(true, true); } if (this.t > pl.tLand - 150000 && this.t < pl.tLand && this.state.scale !== 'surface' && !this._cutT) this.groundCut(); if (x(pl.tA - 25 * MN) && this.state.scale === 'transit') this.goScale('moon', true); if (x(pl.tA + 15 * MN)) this.timeSkip(pl.tLand - (S.DEORBIT_S + 90) * 1000, 'One day later', 'Waiting in lunar orbit for the landing site to pass below'); if (prev < pl.tLand && this.t >= pl.tLand && this.state.scale !== 'surface' && !this._cutT) this.goScale('surface', true); }
+      if (!this.state.compare) { const MN = 60000, x = e2 => prev < e2 && this.t >= e2; if (x(pl.tTLI + 6 * MN) && this.state.pov) this.setCam(true, false); /* on board through the translunar burn and stage separation, then pull back to show the route */ if (x(pl.tLand - 13 * MN)) { if (this.state.scale !== 'transit') this.goScale('transit', true); this.setCam(true, true); } if (this.t > pl.tLand - 150000 && this.t < pl.tLand && this.state.scale !== 'surface' && !this._cutT) this.groundCut(); if (x(pl.tA - 25 * MN) && this.state.scale === 'transit') this.goScale('moon', true); if (prev < pl.tLand && this.t >= pl.tLand && this.state.scale !== 'surface' && !this._cutT) this.goScale('surface', true); }
       if (this.t >= pl.tEnd) this.setState({ playing: false });
     }
     { // landing shot: keep the ground camera clean (no surface figures or edge hints) until just after touchdown
@@ -362,12 +362,6 @@ export default class LunarNavigator extends React.Component {
       { t: p.tLand - 200e3, label: 'High gate', sub: 'The lander pitches upright' },
       { t: p.tLand, label: 'Touchdown', sub: this.inCase() ? 'Real mission: in a crater, on its side' : p.text },
     ].concat(caseMilestones(this.realCase, p));
-  }
-  /** Skip uneventful time (a day of waiting in lunar orbit) through a dip to black, with a caption. */
-  timeSkip(to, label, sub) {
-    const go = () => { this._skipT = null; if (this._unmounted || this.t >= to) return; this.t = this.scene.time = to; this._lastT = to; this.scene.snap(); this._force = true; this.showToast({ t: to, label, sub }); };
-    clearTimeout(this._skipT); if (this.reduce()) { go(); return; }
-    this.setState({ dip: Date.now() }); this._skipT = setTimeout(go, 280);
   }
   /** Cut (through a short dip to black) from the onboard camera to a camera on the ground watching the lander come in. */
   groundCut() {
