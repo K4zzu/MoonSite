@@ -4,6 +4,8 @@ A web tool to compare lunar landing sites and dates quickly: where the Sun and E
 real terrain horizon, how long until sunset or Earthset, and whether a mission gets enough sunlight for
 power and enough direct-to-Earth link time. Built for the NASA Space Apps lunar south-pole challenge.
 
+**Live app:** https://moonsite.whatbrainy.com · **Code:** https://github.com/K4zzu/MoonSite
+
 ```
 MoonSite/
 ├── MoonSite-web/   React + Vite (JavaScript) app — the 3D navigator
