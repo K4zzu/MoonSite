@@ -56,7 +56,7 @@ const SITES = [
   { id: 'gerlache', dataId: 'de-gerlache-rim', name: 'de Gerlache Rim', group: 'South pole candidates', lat: -88.67, lon: -68.4, relief: 1.2, drop: 1.0, seed: 53 },
   { id: 'haworth', dataId: 'haworth', name: 'Haworth', group: 'South pole candidates', lat: -86.7725, lon: -20.566, relief: 1.6, drop: 0.2, seed: 67 },
   { id: 'im1', dataId: 'malapert-a', name: 'Malapert A (IM-1)', group: 'CLPS', lat: -80.13, lon: 1.44, relief: 0.6, drop: 0.3, seed: 71 },
-  { id: 'im2', dataId: 'mons-mouton', name: 'Mons Mouton (IM-2)', group: 'CLPS', lat: -84.79, lon: 29.20, relief: 0.9, drop: 0.4, seed: 79 },
+  { id: 'im2', dataId: 'mons-mouton', dataExtra: ['mons-mouton-2025'], name: 'Mons Mouton (IM-2)', group: 'CLPS', lat: -84.79, lon: 29.20, relief: 0.9, drop: 0.4, seed: 79 },
   { id: 'crisium', dataId: 'blue-ghost-1', name: 'Mare Crisium (Blue Ghost)', group: 'CLPS', lat: 18.56, lon: 61.81, relief: 0.2, drop: 0, seed: 83 },
   { id: 'reiner', dataId: 'reiner-gamma', name: 'Reiner Gamma', group: 'CLPS', lat: 7.5, lon: -59.0, relief: 0.15, drop: 0, seed: 89 },
   { id: 'ch3', dataId: 'chandrayaan-3', name: 'Shiv Shakti (Chandrayaan-3)', group: 'International', lat: -69.37, lon: 32.32, relief: 0.4, drop: 0, seed: 97 },

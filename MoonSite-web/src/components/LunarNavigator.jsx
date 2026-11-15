@@ -11,6 +11,7 @@ import WindowsPanel from './WindowsPanel.jsx';
 import Cinematic from './Cinematic.jsx';
 import { Sound } from '../lib/audio.js';
 import { STAGING } from '../lib/ships.js';
+import { IM2, casePlans, caseMilestones, caseText } from '../lib/realCase.js';
 import './LunarNavigator.hover.css';
 
 export default class LunarNavigator extends React.Component {
@@ -34,11 +35,24 @@ export default class LunarNavigator extends React.Component {
     card.style.top = Math.max(16, Math.min(H - ch - 16, !ok ? H / 2 - ch / 2 : y + h / 2 < H / 2 ? y + h + 16 : y - ch - 16)) + 'px';
   }
   startMissions(selArg, tut) {
+    if (this.realCase) { this.realCase = null; this.scene.tipCase = false; if (this._reqBeforeCase) this.req = this._reqBeforeCase; }
     const S = this.S, ms = (selArg || this.state.sel).map(k => { const q = k.split(','); return this.grid[q[0]] && this.grid[q[0]].cells[q[1]]; }).filter(Boolean); if (!ms.length) return; const m0 = ms[0], sc = this.scene, first = tut == null ? !this.seenTut() : tut, many = ms.length > 1, cmp = many && !first; this._cmpAfter = many && first;
     this.rp = null; this.tw = null; this.hold = null; clearTimeout(this._gt); this.plan = this.original = m0.plan; sc.setPlan(m0.plan); sc.setAlts([]); sc.ghostAlpha = this.ghostTarget = 0; sc.altAlpha = this.altTarget = 0; sc.drawFrac = 1; this.syncPlanRolls(m0.plan, true);
     this.t = sc.time = m0.plan.launch; sc.follow = true; sc.pov = !cmp; sc.selectedId = null; sc.flyTo('transit', true); sc.snap(); this._force = true; this._started = true; this._playAfterTut = first;
     this.setState({ pre: false, intro: false, menu: false, scale: cmp ? 'auto' : 'transit', compare: cmp, panes: many ? ms.map(m => ({ siteId: m.plan.site.id, dt: Math.round((m.plan.launch - m0.plan.launch) / S.DAY) })) : this.state.panes, follow: true, pov: !cmp, playing: false, alts: [], diffs: [], replanned: false, replanning: false, cardId: null, pop: null, details: false, tut: first ? 0 : -1 }); if (!first) this.beginPlay(cmp);
   }
+  /** Real case: IM-2 Athena (2025) on its real date, with the same mission one week late and not replanned as a ghost route. */
+  startCase() {
+    const sc = this.scene, site = this.siteById(IM2.siteId), c = casePlans(site);
+    if (!this.realCase) this._reqBeforeCase = this.req;
+    this.req = Object.assign({}, c.req); this.realCase = { plan: c.plan, ghost: c.ghost }; sc.tipCase = true;
+    this.rp = null; this.tw = null; this.hold = null; clearTimeout(this._gt); this.plan = this.original = c.plan; sc.setPlan(c.plan); sc.setAlts([]); sc.altAlpha = this.altTarget = 0; sc.drawFrac = 1; this.syncPlanRolls(c.plan, true);
+    sc.setGhost(c.ghost); sc.ghostAlpha = this.ghostTarget = 0.6;
+    this.t = sc.time = c.plan.launch; sc.follow = true; sc.pov = true; sc.selectedId = null; sc.flyTo('transit', true); sc.snap(); this._force = true; this._started = true; this._playAfterTut = false;
+    this.setState({ pre: false, intro: false, menu: false, scale: 'transit', compare: false, follow: true, pov: true, playing: false, alts: [], diffs: [], replanned: false, replanning: false, cardId: null, pop: null, details: false, tut: -1 });
+    this.beginPlay();
+  }
+  inCase() { return !!this.realCase && this.plan === this.realCase.plan; }
   lang() { return this.state.lang ?? this.props.language ?? 'en'; }
   tr(s) { return LunarUI ? LunarUI.tr(this.lang(), s) : s; }
   applyLang() { LunarUI.applyLang(this); if (document.documentElement.lang !== this.lang()) document.documentElement.lang = this.lang(); }
@@ -114,7 +128,7 @@ export default class LunarNavigator extends React.Component {
       const lnd = this.state.scale === 'surface' && !this.state.compare && this.t > pl.tLand - 160000 && this.t < pl.tLand + 8000;
       if (lnd !== !!this.state.landing) this.setState({ landing: lnd });
     }
-    sc.time = this.t; const k = this.reduce() ? 1 : 1 - Math.exp(-dt * 5);
+    sc.time = this.t; sc.tipCase = this.inCase(); const k = this.reduce() ? 1 : 1 - Math.exp(-dt * 5);
     sc.ghostAlpha += (this.ghostTarget - sc.ghostAlpha) * k; sc.altAlpha += (this.altTarget - sc.altAlpha) * k;
     if (this.state.compare && this.root.current) {
       const cb = this.canvas.current.getBoundingClientRect(), z = cb.width / this.canvas.current.clientWidth || 1; sc.compareRects = Array.from(this.root.current.querySelectorAll('[data-pane-view]')).map(el => { const b = el.getBoundingClientRect(); return { x: Math.round((b.left - cb.left) / z) + 1, y: Math.round((b.top - cb.top) / z) + 1, w: Math.round(b.width / z) - 2, h: Math.round(b.height / z) - 1 }; });
@@ -137,7 +151,7 @@ export default class LunarNavigator extends React.Component {
       this.setTxt('sunState', sk.lit > .5 ? 'Sunlight' : sk.sunEl > -0.3 ? 'Sun behind terrain' : 'Night'); this.setDot('sun', sk.lit > .5);
       this.setTxt('linkState', sk.link ? 'Link to Earth' : sk.earthEl > 0 ? 'Earth behind terrain' : 'No link to Earth'); this.setDot('link', sk.link);
       const ph = t < pl.launch + 600000 ? 'Launch' : t < pl.tTLI ? 'Parking orbit' : t < pl.tA ? 'Coast' : t < pl.tLand - S.HOUR ? 'Lunar orbit' : t < pl.tLand ? 'Descent' : 'Surface operations';
-      LunarUI.updateStory(this, pl, t, sk); this.setTxt('phase', ph); this.setTxt('distLabel', t >= pl.tA ? 'Altitude' : 'To the Moon'); const d = new Date(t); this.setTxt('clock', S.fmtDate(t) + ' · ' + String(d.getUTCHours()).padStart(2, '0') + ':00 UTC');
+      LunarUI.updateStory(this, pl, t, sk); this.setTxt('phase', ph); this.setTxt('distLabel', t >= pl.tA ? 'Altitude' : 'To the Moon'); this.setTxt('ghostLabel', this.inCase() ? caseText(this.lang()).ghostLabel : 'Old arrival'); const d = new Date(t); this.setTxt('clock', S.fmtDate(t) + ' · ' + String(d.getUTCHours()).padStart(2, '0') + ':00 UTC');
       if (this.state.cardId) { const s = this.siteById(this.state.cardId), k2 = s && S.sky(t, s); if (k2) { this.setTxt('cardSun', k2.lit > .5 ? 'Yes, now' : 'In shadow'); this.setDot('cardSun', k2.lit > .5); this.setTxt('cardLink', k2.link ? 'Yes, now' : 'Not visible'); this.setDot('cardLink', k2.link); } }
     }
     if (!this._els) { this._els = { a: Array.from(root.querySelectorAll('[data-anchor]')), r: Array.from(root.querySelectorAll('[data-roll]')), t: Array.from(root.querySelectorAll('[data-txt]')), d: Array.from(root.querySelectorAll('[data-dot]')), e: Array.from(root.querySelectorAll('[data-edge]')), fill: root.querySelector('[data-tl=fill]'), handle: root.querySelector('[data-tl=handle]') }; this._dirtyTxt = true; for (const k in this.rolls) this.rolls[k].s = null; }
@@ -265,7 +279,8 @@ export default class LunarNavigator extends React.Component {
       toggleExplain: () => this.setState({ explain: !this.explainOn(), evm: !this.explainOn() }), toggleEvm: () => this.setState({ evm: !st.evm }),
       toggleDetails: () => this.setState({ details: !st.details }), toggleReduce: () => this.setState({ reduce: !this.reduce() }),
       toggleCompare: () => { if (!st.compare) { this.setState({ pre: true, menu: false, playing: false, pop: null, sel: st.sel.length > 1 ? st.sel : ['0,4', '0,3'] }); return; } const c = !st.compare, sc2 = st.scale === 'moon' ? 'surface' : st.scale; if (c) { this.scene.pov = false; this.scene.flyTo(sc2, true); this.scene.snap(); } this._force = true; this.setState({ compare: c, pov: false, scale: c ? 'auto' : st.scale === 'auto' ? (this.t >= this.plan.tLand ? 'surface' : 'transit') : st.scale, pop: null, cardId: null, panes: c ? [{ siteId: this.plan.site.id, dt: 0 }].concat(st.panes.slice(1)) : st.panes }); },
-      simulateDelay: () => { if (!this.rp) this.replan({ launch: this.plan.launch + 3 * S.DAY }); },
+      simulateDelay: () => { if (!this.rp) this.replan({ launch: this.plan.launch + (this.inCase() ? IM2.delayDays : 3) * S.DAY }); },
+      startCase: () => this.startCase(),
       togglePlay: () => { Sound.unlock(); if (!st.playing && !st.compare && st.countdown == null && this.t <= this.plan.launch + 1000) { this.startCountdown(); return; } if (!st.playing && this.t >= this.plan.tEnd - 1000) this.t = this.plan.launch; if (!st.playing && !st.compare && st.scale === 'transit' && this.t < this.plan.launch + 9 * 60000) { this.t = Math.min(this.t, this.plan.launch + 1000); this.setCam(true, true); } this.setState({ playing: !st.playing }); },
       cycleSpeed: () => this.setState({ speedIdx: (st.speedIdx + 1) % 3 }),
       toggleFollow: () => { if (st.pov) this.setCam(false, false); else if (st.follow) this.setCam(true, true); else this.setCam(true, false); },
@@ -288,7 +303,8 @@ export default class LunarNavigator extends React.Component {
       .map(([label, f, tx, dateT, goT, scale], i) => ({ z: narrow && (i === 1 || i === 2 || i === 3 || (st.mobile && i === 4)) && st.hoverMs !== i ? 1 : 2, maxW: narrow && (i === 1 || i === 2 || i === 3 || (st.mobile && i === 4)) && st.hoverMs !== i ? '26px' : 'none', labelOp: narrow && (i === 1 || i === 2 || i === 3 || (st.mobile && i === 4)) && st.hoverMs !== i ? 0 : narrow && st.hoverMs >= 1 && st.hoverMs <= 3 && st.hoverMs !== i && i !== 0 ? 0 : 1, minW: narrow && i >= 1 && i <= 3 ? '26px' : '0px', label: narrow && i === 5 ? 'Surface' : label, left: P(f), tx, date: i === 5 ? `${S.fmtDate(pl.tLand)} – ${S.fmtDate(pl.tEnd)}` : S.fmtDate(dateT), color: st.hoverMs === i ? '#F3F1EC' : 'rgba(243,241,236,.66)', dateOp: on(st.hoverMs === i), go: e => { e.stopPropagation(); this.jump(goT, scale); }, enter: () => this.setState({ hoverMs: i }), leave: () => this.setState({ hoverMs: -1 }) }));
     const cs = st.cardId ? this.siteById(st.cardId) : null, isCur = cs && cs.id === pl.site.id;
     const card = cs ? { name: cs.name, sub: `${cs.group} · ${Math.abs(cs.lat).toFixed(2)}°${cs.lat < 0 ? 'S' : 'N'}, ${Math.abs(cs.lon).toFixed(2)}°${cs.lon < 0 ? 'W' : 'E'}`, noData: !!cs.noData, actLabel: isCur ? 'Stand here' : 'Land here', act: () => isCur ? this.goScale('surface') : this.pickSite(cs) } : { name: '', sub: '', noData: false, actLabel: '', act: () => {} };
-    const text = this.rp ? 'Replanning…' : pl.verdict === 'viable' && st.replanned ? 'Still viable' : pl.text, busy = !!this.rp;
+    const caseLost = this.inCase() && this.t >= pl.tLand && !this.rp;
+    const text = this.rp ? 'Replanning…' : caseLost ? caseText(this.lang()).verdictText : pl.verdict === 'viable' && st.replanned ? 'Still viable' : pl.text, busy = !!this.rp;
     const list = this.sites, panes = st.panes.map((p, i) => {
       const s = this.siteById(p.siteId), key = s.id + s.lat + s.lon + '|' + p.dt + '|' + pl.launch + '|' + JSON.stringify(this.req); this._pc = this._pc || {}; const pp = this._pc[key] || (this._pc[key] = S.computePlan(pl.launch + p.dt * S.DAY, s, this.req));
       const upd = ch => this.setState({ panes: st.panes.map((x, j) => j === i ? Object.assign({}, x, ch) : x) }), ix = list.indexOf(s);
@@ -302,7 +318,7 @@ export default class LunarNavigator extends React.Component {
       card, cardPE: pe(!!cs && st.scale === 'moon' && !st.compare),
       alts: st.alts.map((a, i) => ({ anchor: 'alt' + i, n: i + 1, label: a.label, pick: () => { if (!this.rp) this.replan({ launch: a.plan.launch, site: a.plan.site }); } })),
       diffs: st.diffs, hasDiffs: st.diffs.length > 0 && !st.mobile,
-      verdictOp: on(!st.compare), verdictPE: pe(!st.compare), verdictText: text, verdictColor: busy ? 'rgba(243,241,236,.8)' : vc, verdictDot: busy || pl.verdict === 'marginal' ? 'transparent' : vc, verdictBorder: busy ? 'rgba(255,255,255,.12)' : pl.verdict === 'viable' ? 'rgba(116,209,154,.45)' : pl.verdict === 'not' ? 'rgba(238,142,130,.5)' : 'rgba(255,255,255,.25)',
+      verdictOp: on(!st.compare), verdictPE: pe(!st.compare), verdictText: text, verdictColor: busy ? 'rgba(243,241,236,.8)' : caseLost ? '#F3F1EC' : vc, verdictDot: busy || caseLost || pl.verdict === 'marginal' ? 'transparent' : vc, verdictBorder: busy ? 'rgba(255,255,255,.12)' : caseLost ? 'rgba(255,255,255,.3)' : pl.verdict === 'viable' ? 'rgba(116,209,154,.45)' : pl.verdict === 'not' ? 'rgba(238,142,130,.5)' : 'rgba(255,255,255,.25)',
       panes, addPaneOp: on(st.compare && st.panes.length < 4 && !st.mobile), addPanePE: pe(st.compare && st.panes.length < 4 && !st.mobile),
       statRows: [{ label: 'Hours with sunlight', key: 'sunPct', color: '#E8B95A' }, { label: 'Hours with Earth link', key: 'linkPct', color: '#6FA8F5' }, { label: 'Hours with both', key: 'bothPct', color: '#F3F1EC' }, { label: 'Longest night', key: 'nightMax', color: '#F3F1EC' }, { label: 'Highest Sun elevation', key: 'maxEl', color: '#F3F1EC' }],
       burnRows: [{ label: 'Translunar burn', key: 'dvTli' }, { label: 'Lunar orbit insertion', key: 'dvLoi' }, { label: 'Descent and landing', key: 'dvDesc' }, { label: 'Total', key: 'dvTot' }, { label: 'Coast time', key: 'tof' }],
@@ -344,8 +360,8 @@ export default class LunarNavigator extends React.Component {
       { t: p.tLand - S.DEORBIT_S * 1000 - 25e3, label: 'Deorbit burn', sub: 'Perilune lowered to 15 km' },
       { t: p.tLand - S.PDI_S * 1000, label: 'Powered descent', sub: 'Braking from 1.7 km/s' },
       { t: p.tLand - 200e3, label: 'High gate', sub: 'The lander pitches upright' },
-      { t: p.tLand, label: 'Touchdown', sub: p.text },
-    ];
+      { t: p.tLand, label: 'Touchdown', sub: this.inCase() ? 'Real mission: in a crater, on its side' : p.text },
+    ].concat(caseMilestones(this.realCase, p));
   }
   /** Cut (through a short dip to black) from the onboard camera to a camera on the ground watching the lander come in. */
   groundCut() {
@@ -422,7 +438,7 @@ export default class LunarNavigator extends React.Component {
           {"Moon at arrival · "}
           <span data-roll="arrive"></span>
         </div>
-        <div data-anchor="ghostArrival" data-scales="transit" data-dx="16" data-dy="-8" style={css("position:absolute;left:0;top:0;opacity:0;transition:opacity .4s;font-size:12px;color:rgba(243,241,236,.62);text-shadow:0 0 10px #000,0 0 4px #000;white-space:nowrap")}>
+        <div data-anchor="ghostArrival" data-txt="ghostLabel" data-scales="transit" data-dx="16" data-dy="-8" style={css("position:absolute;left:0;top:0;opacity:0;transition:opacity .4s;font-size:12px;color:rgba(243,241,236,.62);text-shadow:0 0 10px #000,0 0 4px #000;white-space:nowrap")}>
           {"Old arrival"}
         </div>
         <div data-anchor="ship" data-scales="transit" data-ship="1" data-dx="22" data-dy="-30" style={css("position:absolute;left:0;top:0;opacity:0;transition:opacity .4s;display:flex;flex-direction:column;gap:6px;text-shadow:0 0 10px #000,0 0 4px #000;white-space:nowrap")}>
@@ -1015,6 +1031,22 @@ export default class LunarNavigator extends React.Component {
               {"Each cell is one mission: a landing site and a launch date. It is viable only if the lander gets enough sunlight for power and enough contact with Earth. Pick one to fly it, or up to four to compare them from launch to landing."}
             </div>
           </div>
+          <button onClick={v.startCase} className="hv29" style={css("display:flex;align-items:center;gap:16px;text-align:left;background:rgba(232,185,90,.07);border:1px solid rgba(232,185,90,.45);border-radius:12px;padding:12px 16px;cursor:pointer;color:#F3F1EC;max-width:980px")}>
+            <span style={css("display:flex;flex-direction:column;gap:3px;min-width:0;flex:1")}>
+              <span style={css("font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#E8B95A")}>
+                {"Real case · 2025"}
+              </span>
+              <span style={css("font-size:16px;font-weight:500")}>
+                {"IM-2 Athena at Mons Mouton: what a one-week slip would have done"}
+              </span>
+              <span style={css("font-size:13px;color:rgba(243,241,236,.72);text-wrap:pretty")}>
+                {"A real south-pole landing with almost no light margin. Watch it next to the same mission one week late, without replanning, then replan it yourself."}
+              </span>
+            </span>
+            <span style={css("flex:none;font-size:14px;border:1px solid rgba(243,241,236,.5);border-radius:999px;padding:9px 16px;white-space:nowrap")}>
+              {"Watch the case"}
+            </span>
+          </button>
           <div style={css("overflow-x:auto")}>
             <div style={css("display:grid;grid-template-columns:minmax(128px,1.2fr) repeat(7,minmax(88px,1fr));gap:6px;min-width:780px")}>
               <div style={css("font-size:12px;color:rgba(243,241,236,.62);align-self:end;padding-bottom:4px;white-space:pre")}>

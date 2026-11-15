@@ -28,6 +28,10 @@ export async function loadLunarData(sites, onEach) {
       const r = await fetch(`${BASE}data/${s.dataId}.json`);
       if (r.ok) { s.data = await r.json(); delete s._ter; }
     } catch { /* keep the analytic model for this site */ }
+    // extra Horizons spans for the same site (e.g. the dates of a real past mission), used when t falls inside them
+    for (const id of s.dataExtra || []) {
+      try { const r = await fetch(`${BASE}data/${id}.json`); if (r.ok) (s.extra || (s.extra = [])).push(await r.json()); } catch { /* optional */ }
+    }
     onEach?.(++done / withData.length);
   }));
   return dataStatus(sites);
@@ -86,7 +90,12 @@ const lerpAz =(a, b, k) => { const d = ((b - a + 540) % 360) - 180; return a + d
 
 /** Sun / Earth azimuth and elevation (deg) from Horizons at time t (ms), linearly interpolated; null outside the data. */
 export function skyFromData(site, t) {
-  const d = site && site.data;
+  const main = seriesAt(site && site.data, t);
+  if (main || !site || !site.extra) return main;
+  for (const d of site.extra) { const k = seriesAt(d, t); if (k) return k; }
+  return null;
+}
+function seriesAt(d, t) {
   if (!isRealEphemeris(d)) return null;
   const t0 = d._t0 || (d._t0 = Date.parse(d.start_utc)), x = (t - t0) / (d.step_min * 60000);
   if (!(x >= 0 && x <= d.n - 1)) return null;

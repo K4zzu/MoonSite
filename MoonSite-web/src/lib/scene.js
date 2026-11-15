@@ -348,8 +348,8 @@ class LunarScene {
       const groundCam = (this.scale === 'surface' || this.compare) && (this.povMix || 0) < .5, descending = mine && groundCam && dtl < 0 && dtl > -LunarScene.LAND_VIS;
       k.lander.visible = mixS > .5 && (dtl >= 0 || descending); k.sunPath.visible = k.earthPath.visible = mixS > .999; k.beam.visible = mixS > .999 && dtl >= 0;
       this._updateLanding(k, c, pose, descending ? dtl : null, sk);
-      const b = k.beam.geometry.attributes.position, e = localDir(sk.earthAz, sk.earthEl).multiplyScalar(380).add(k.beamFrom);
-      b.setXYZ(0, k.beamFrom.x, k.beamFrom.y, k.beamFrom.z); b.setXYZ(1, e.x, e.y, e.z); b.needsUpdate = true; k.beam.material.color.setHex(sk.link ? BLUE : 0x777777); k.beam.material.opacity = (sk.link ? .95 : .45) * mixS;
+      const bf = k.beamNow || k.beamFrom, b = k.beam.geometry.attributes.position, e = localDir(sk.earthAz, sk.earthEl).multiplyScalar(380).add(bf);
+      b.setXYZ(0, bf.x, bf.y, bf.z); b.setXYZ(1, e.x, e.y, e.z); b.needsUpdate = true; k.beam.material.color.setHex(sk.link ? BLUE : 0x777777); k.beam.material.opacity = (sk.link ? .95 : .45) * mixS;
       if (Math.abs(c.t - k.pathT) > S.HOUR / 2) { k.pathT = c.t; const a = k.sunPath.geometry.attributes.position, a2 = k.earthPath.geometry.attributes.position;
         for (let i = 0; i < 140; i++) { const s1 = S.sky(c.t + i / 139 * 12 * S.DAY, c.site), s2 = S.sky(c.t + i / 139 * 27.3 * S.DAY, c.site), p1 = localDir(s1.sunAz, s1.sunEl).multiplyScalar(900), p2 = localDir(s2.earthAz, s2.earthEl).multiplyScalar(300); a.setXYZ(i, p1.x, p1.y, p1.z); a2.setXYZ(i, p2.x, p2.y, p2.z); }
         a.needsUpdate = a2.needsUpdate = true; }
@@ -400,7 +400,16 @@ class LunarScene {
       const ll = this._landerLocal(c, c.t); L.position.copy(k.landerHome).add(ll.off);
       L.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ll.nose).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), k.landerYaw));
       level = this.burnOverride != null ? 0 : S.burn(pl, c.t).level;
-    } else { L.position.copy(k.landerHome); L.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), k.landerYaw); }
+    } else {
+      const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), k.landerYaw);
+      // real case (IM-2 Athena): a few seconds after contact the lander tips over onto its side, pivoting on two feet
+      const since = pl && pl.site === c.site ? (c.t - pl.tLand) / 1000 : -1, tip = this.tipCase && since > 0 ? 1.4 * smooth(3, 9, since) * smooth(3, 9, since) : 0;
+      if (tip > 0) {
+        const q = qy.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), tip)), P = new THREE.Vector3(-1.95, 0, 0);
+        L.quaternion.copy(q); L.position.copy(k.landerHome).add(P.clone().applyQuaternion(qy).multiplyScalar(1e-6)).sub(P.clone().applyQuaternion(q).multiplyScalar(1e-6));
+        k.beamNow = new THREE.Vector3(0.5, 4.9, 0).applyQuaternion(q).multiplyScalar(1e-6).add(L.position); // the antenna went over with it
+      } else { L.position.copy(k.landerHome); L.quaternion.copy(qy); k.beamNow = null; }
+    }
     const flick = 0.85 + 0.15 * Math.random(), altM = (L.position.y - k.landerHome.y) / 1e-6;
     const camD = c.siteP.clone().add(L.position.clone().applyQuaternion(k.group.quaternion)).distanceTo(pose.pos) / 1e-6;
     k.plume.visible = level > 0.01; k.plume.scale.set(level * 1.3, level * 11 * flick, level * 1.3); k.plume.material.opacity = 0.55 * level;

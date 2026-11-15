@@ -13,6 +13,7 @@ python scripts/make_horizons.py --download   # LOLA terrain horizons + 3D terrai
 python scripts/make_textures.py --download   # NASA Moon (LROC + LOLA) and Earth (Blue Marble) textures
 python scripts/snap_sites.py --write         # landed sites: published coords; candidates: snap to the LOLA crest
 python scripts/validate.py                   # writes ../VALIDATION.md (needs network for Horizons)
+python scripts/fetch_horizons.py --only mons-mouton --start 2025-02-01 --days 120 --suffix 2025   # IM-2 real case
 ```
 
 The web app copies `public/data` and `public/textures` into `../MoonSite-web/public/` by itself (`npm run dev` / `build`).

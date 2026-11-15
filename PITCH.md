@@ -30,7 +30,10 @@ Record at 1920×1080 in Chrome (`npm run dev`, sound on). Use Space to start and
 4. At the site: Sun and Earth over the LOLA horizon, time to sunset / link loss, Sun elevation.
 5. Schedule change: Simulate delay → verdict changes → alternatives.
 6. Details: windows table (tap a window to jump there), sky chart, power estimate, PDF/CSV report, links to Moon Trek, QuickMap, Horizons.
-7. Trust: validation numbers and data sources.
+7. Real case: IM-2 Athena (March 2025). Its date was a good window but the Sun stood 2.5° high; it landed in a crater on
+   its side and lost power in 13 h. The grey ghost route is the same mission one week late without replanning: 58%
+   sunlight, not viable. Simulate delay, then pick an alternative.
+8. Trust: validation numbers and data sources.
 
 ## Slides
 

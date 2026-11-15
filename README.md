@@ -54,6 +54,10 @@ The build uses relative paths, so `MoonSite-web/dist` also works on any other st
 - A realistic landing: deorbit burn, coast down to 15 km, powered descent from ~450 km uprange, pitch-up at high gate,
   then a cut to a camera on the ground that tracks the lander in, its engine lighting the terrain and dust spraying
   out flat (no air), touchdown and a hold before surface operations.
+- Real case, IM-2 Athena (2025): the real mission on its real date (a good window, Sun 2.5° high) next to a grey ghost
+  route, the same mission one week late without replanning (58% sunlight, not viable); the lander tips over at
+  touchdown as Athena did, and Simulate delay lets you replan it. JPL Horizons data for 2025 in
+  `lunar-data/public/data/mons-mouton-2025.json`.
 - Operational windows table (sunlight, Earth link, both) with exact UTC times; tap one to jump there.
 - Power estimate (1 m² vertical panel) and a mission report: printable PDF and CSV.
 - English / Spanish, guided tutorial, keyboard shortcuts, reduce-motion option, works on mobile.

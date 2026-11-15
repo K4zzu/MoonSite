@@ -93,3 +93,15 @@ test('nextChange reports when sunlight flips', () => {
   const s = withData('shackleton'), t = launch + 5 * D, nc = S.nextChange(t, s, 'lit');
   if (nc.hours != null) assert.notEqual(S.sky(t + nc.hours * H, s).lit > 0.5, nc.now);
 });
+
+test('real case IM-2: good window on the real date, the same mission one week late fails, replanning finds a viable plan', async () => {
+  const { casePlans, caseStory } = await import('../src/lib/realCase.js');
+  const s = withData('im2'); s.extra = [JSON.parse(fs.readFileSync(new URL('../public/data/mons-mouton-2025.json', import.meta.url)))]; delete s._ter;
+  const c = casePlans(s);
+  assert.equal(new Date(c.plan.tLand).toISOString().slice(0, 10), '2025-03-06');
+  assert.ok(c.plan.sunPct > 95 && c.plan.verdict === 'viable', `real date ${c.plan.sunPct}%`);
+  assert.ok(c.ghost.sunPct < 70 && c.ghost.verdict !== 'viable', `one week late ${c.ghost.sunPct}%`);
+  assert.ok(S.sky(c.plan.tLand, s).sunEl < 4, 'the Sun was low at touchdown');
+  assert.ok(S.alternatives(c.ghost, c.plan).some(a => !a.original && a.plan.verdict === 'viable'), 'replanning offers a viable alternative');
+  assert.match(caseStory({ ...c }, c.plan, c.plan.tLand + 20 * H, 'en')[1], /grey route/);
+});

@@ -5,6 +5,7 @@ Standard library only. Usage:
     python scripts/fetch_horizons.py --test                  # 6 hours, 1 site, prints the raw reply
     python scripts/fetch_horizons.py                         # all sites, default 2 years hourly
     python scripts/fetch_horizons.py --only shackleton-ridge --start 2026-12-01 --days 730
+    python scripts/fetch_horizons.py --only mons-mouton --start 2025-02-01 --days 120 --suffix 2025   # IM-2 real case
 """
 import argparse
 import json
@@ -14,7 +15,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
-from common import load_sites, write_site, write_index
+from common import OUT_DIR, load_sites, write_site, write_index
 
 API = "https://ssd.jpl.nasa.gov/api/horizons.api"
 BODIES = {"sun": "10", "earth": "399"}
@@ -102,6 +103,7 @@ def main():
     ap.add_argument("--step-min", type=int, default=60)
     ap.add_argument("--only", help="site id")
     ap.add_argument("--test", action="store_true")
+    ap.add_argument("--suffix", help="write <id>-<suffix>.json instead of replacing <id>.json (needs --only)")
     a = ap.parse_args()
 
     sites = load_sites()
@@ -125,10 +127,20 @@ def main():
         sun = fetch_series(s, BODIES["sun"], start, a.days, a.step_min)
         print(f"{s['id']}: Earth...", flush=True)
         earth = fetch_series(s, BODIES["earth"], start, a.days, a.step_min)
-        path = write_site(s, start_iso, a.step_min, sun, earth, "JPL Horizons")
+        if a.suffix:
+            # extra time span for a site (e.g. a real past mission): <id>-<suffix>.json, same horizon and terrain
+            main = json.loads((OUT_DIR / f"{s['id']}.json").read_text(encoding="utf-8"))
+            path = write_site(dict(s, id=f"{s['id']}-{a.suffix}"), start_iso, a.step_min, sun, earth, "JPL Horizons",
+                              horizon=main["horizon"])
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            if main.get("terrain"):
+                doc["terrain"] = main["terrain"]
+            path.write_text(json.dumps(doc, separators=(",", ":")), encoding="utf-8")
+        else:
+            path = write_site(s, start_iso, a.step_min, sun, earth, "JPL Horizons")
         n = len(sun)
         print(f"  wrote {path} ({n} steps)")
-    if not a.only:
+    if not a.only and not a.suffix:
         write_index(sites, start_iso, a.step_min, n, "JPL Horizons")
     print("done")
 
