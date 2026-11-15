@@ -342,7 +342,7 @@ export default class LunarNavigator extends React.Component {
     if (now !== prev && this.cd > 0) { this.setState({ countdown: now }); Sound.beep(now <= 3 ? 990 : 660, now <= 3 ? 0.18 : 0.1); if (now === 2) Sound.engine(0.4); }
     if (this.cd <= 0) {
       this.cd = null; this.scene.burnOverride = null; this._lastT = this.t = this.scene.time = this.plan.launch;
-      this.setState({ countdown: null, playing: true, flash: Date.now() }); Sound.rumble(5); this.showToast({ t: this.plan.launch, label: 'Liftoff' });
+      this.setState({ countdown: null, playing: true, liftFlash: Date.now() }); Sound.rumble(5); this.showToast({ t: this.plan.launch, label: 'Liftoff' });
     }
   }
   milestones() {
@@ -1260,7 +1260,7 @@ export default class LunarNavigator extends React.Component {
           ))}
         </div>
       </div>
-      <Cinematic countdown={this.state.countdown} toast={this.state.toast} flashKey={this.state.flash} dipKey={this.state.dip} letterbox={!!this.state.letterbox} onSkip={this.skipCountdown} reduce={this.reduce()} />
+      <Cinematic countdown={this.state.countdown} toast={this.state.toast} flashKey={this.state.liftFlash} dipKey={this.state.dip} letterbox={!!this.state.letterbox} onSkip={this.skipCountdown} reduce={this.reduce()} />
     </div>
     );
   }
