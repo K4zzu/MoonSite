@@ -6,3 +6,10 @@ input[type=range] { accent-color: #F3F1EC; }
 button:active { transform: scale(.97); }
 @keyframes lnspin { to { transform: rotate(360deg); } }
 @keyframes lnpulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@keyframes lnring { from { stroke-dashoffset: 628.3; } to { stroke-dashoffset: 0; } }
+@keyframes lnpop { from { transform: scale(1.35); opacity: 0; filter: blur(6px); } to { transform: scale(1); opacity: 1; filter: blur(0); } }
+@keyframes lnrise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes lnflash { 0% { opacity: .85; } 100% { opacity: 0; } }
+@keyframes lntoast { 0% { opacity: 0; transform: translate(-50%, 14px); letter-spacing: .02em; } 12% { opacity: 1; transform: translate(-50%, 0); } 78% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -10px); } }
+.cin-skip:hover { background: rgba(255,255,255,.12) !important; }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; } }

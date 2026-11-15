@@ -16,6 +16,13 @@ npm run build
 - `src/lib/scene.js` — Three.js scene (Earth, Moon, route, landing site).
 - `src/lib/extras.js` — texture detail, EN/ES translations, story text, tutorial.
 - `src/lib/lunarData.js` — reads `public/data/*.json` produced by `../lunar-data`.
+- `src/lib/ships.js` — procedural rocket (stages in flight) and lander, exhaust and smoke particles.
+- `src/lib/audio.js` — synthesized countdown, liftoff and engine sounds (WebAudio, no files).
+- `src/lib/report.js` — mission report (printable page) and windows CSV.
+- `src/components/Cinematic.jsx` — countdown, liftoff flash, letterbox, milestone call-outs.
+- `src/components/WindowsPanel.jsx`, `HorizonChart.jsx` — operational windows and 2D sky chart in Details.
+
+Keyboard: Space play / skip countdown, ← → one hour (Shift: six), 1 2 3 scales, D details, E explain, M sound.
 - `public/data/` — copy of `../lunar-data/public/data`. Copy it again after you regenerate the data.
 
 ## Data (NASA resources)

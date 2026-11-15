@@ -11,6 +11,8 @@ python scripts/fetch_horizons.py         # real data for every site (2 years, ho
 pip install numpy pillow
 python scripts/make_horizons.py --download   # LOLA terrain horizons + 3D terrain grid for the south-pole sites
 python scripts/make_textures.py --download   # NASA Moon (LROC + LOLA) and Earth (Blue Marble) textures
+python scripts/snap_sites.py --write         # landed sites: published coords; candidates: snap to the LOLA crest
+python scripts/validate.py                   # writes ../VALIDATION.md (needs network for Horizons)
 ```
 
 Then copy `public/data` and `public/textures` into `../MoonSite-web/public/`.
@@ -52,6 +54,6 @@ A body is visible when its elevation is above `horizon.el` in its azimuth.
 
 ## Still to do
 
-- Verify site coordinates in Quickmap and set `verified: true`. Nobile Rim, Malapert Massif and Malapert A have
-  their highest horizon point 200-500 m away, which suggests the coordinates sit on a slope.
+- Haworth and Malapert Massif reach the 1.5 km snap radius: the crest continues further. Check them in QuickMap.
+  After moving a site run `fetch_horizons.py --only <id>` and `make_horizons.py` again.
 - Terrain horizons for sites north of 75°S would need a global LOLA product (for example the 118 m/px global DEM).

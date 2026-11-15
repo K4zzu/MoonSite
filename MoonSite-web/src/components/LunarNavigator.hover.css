@@ -36,3 +36,6 @@
 .hv35:hover{background:#fff !important}
 .hv36:hover{background:#fff !important}
 .hv37:hover{background:rgba(255,255,255,.08) !important}
+.ws-row:hover{background:rgba(255,255,255,.08) !important}
+.ws-btn:hover,.ws-tab:hover{border-color:rgba(255,255,255,.6) !important}
+.hv-snd:hover{color:#fff !important}

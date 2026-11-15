@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import LunarSim from './sim.js';
 import { LunarExtras } from './extras.js';
+import { buildRocket, buildLander, deployLander, stageRocket, Particles } from './ships.js';
 
 const S = LunarSim, K = 1e-3, RM = S.R_M * K, RE = S.R_E * K, D2R = Math.PI / 180, NE = 400, NL = 360;
 const V3 = () => new THREE.Vector3();
@@ -144,6 +145,7 @@ class LunarScene {
     this.ghostArr = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.arrival.material.map, color: 0x9a9a9a, depthTest: false, depthWrite: false, transparent: true, opacity: 0 })); T.add(this.ghostArr);
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(40 * 6), 3));
     this.links = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x4f93ff, transparent: true, opacity: .4, depthWrite: false })); this.links.frustumCulled = false; R.add(this.links);
+    this._buildCraft();
   }
   _fillE(plan, attr) { const a = attr.array, te = []; for (let i = 0; i < NE; i++) { let t; if (i < 100) t = plan.launch + (plan.tTLI - plan.launch) * i / 99; else { const k = (i - 100) / (NE - 101); t = plan.tTLI + (plan.tA - plan.tTLI) * (0.35 * k + 0.65 * k * k); } const p = S.shipPos(plan, t); a[i * 3] = p[0] * K; a[i * 3 + 1] = p[2] * K; a[i * 3 + 2] = -p[1] * K; te.push(t); } attr.needsUpdate = true; return te; }
   setPlan(plan) { this.plan = plan; this.site = plan.site; this._dirty = true; }
@@ -217,7 +219,7 @@ class LunarScene {
       const tr = this.trail.geometry.attributes.position, cd = c.shipP.distanceTo(this.pose.pos), sp3 = Math.max(S.shipSpeed(pl, t), .3), lunar0 = t > pl.tA, dt = Math.min(cd * 1000 * .35 / sp3 / 32 * 1000, lunar0 ? 60000 : 240000), lunar = t > pl.tA, m0 = lunar ? S.moonPos(t) : null;
       for (let i = 0; i < 32; i++) { const tt = Math.max(pl.launch, t - i * dt); let p = S.shipPos(pl, tt); if (lunar) p = S.V.add(S.V.sub(p, S.moonPos(tt)), m0); tr.setXYZ(i, p[0] * K, p[2] * K, -p[1] * K); }
       tr.needsUpdate = true; this.trail.visible = this.ship.visible = t < pl.tLand;
-      const bn = S.burn(pl, t); c.burn = bn.level; if (bn.level > 0) { let vv = S.V.sub(S.shipPos(pl, t + 2000), S.shipPos(pl, t - 2000)); if (bn.kind === 'loi' || bn.kind === 'descent') vv = S.V.sub(vv, S.V.sub(S.moonPos(t + 2000), S.moonPos(t - 2000))); const vd = d3(S.V.unit(vv)); c.plumeDir = bn.kind === 'ascent' || bn.kind === 'tli' ? vd.negate() : bn.kind === 'descent' && c.U ? vd.multiplyScalar(.4).addScaledVector(c.U, -.6).normalize() : vd; }
+      const bn = S.burn(pl, t); c.burn = this.burnOverride != null ? bn.level * this.burnOverride : bn.level; if (bn.level > 0) { let vv = S.V.sub(S.shipPos(pl, t + 2000), S.shipPos(pl, t - 2000)); if (bn.kind === 'loi' || bn.kind === 'descent') vv = S.V.sub(vv, S.V.sub(S.moonPos(t + 2000), S.moonPos(t - 2000))); const vd = d3(S.V.unit(vv)); c.plumeDir = bn.kind === 'ascent' || bn.kind === 'tli' ? vd.negate() : bn.kind === 'descent' && c.U ? vd.multiplyScalar(.4).addScaledVector(c.U, -.6).normalize() : vd; }
       this.tip.visible = this.drawFrac < 1 && this.drawFrac > 0; if (this.tip.visible) { const a2 = this.todoE.geometry.attributes.position, j = lim - 1; this.tip.position.set(a2.getX(j), a2.getY(j), a2.getZ(j)); }
     }
     return c;
@@ -274,6 +276,7 @@ class LunarScene {
         const facing = d3(st.U).dot(pose.pos.clone().sub(st.w).normalize()); sp.scale.setScalar(d * (hot ? .034 : .02)); sp.material.opacity = aMoon * smooth(-.05, .12, facing) * (st.lit ? 1 : .75); }
       if (c.shipP) { const dd = c.shipP.distanceTo(pose.pos), b = c.burn || 0; this.ship.scale.setScalar(dd * (.03 + .035 * b)); this.ship.material.color.setHex(b > .1 ? 0xffd9a8 : 0xffffff); this.plume.visible = b > .02 && this.ship.visible; this.plume.position.copy(c.shipP); if (c.plumeDir) this.plume.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), c.plumeDir); this.plume.scale.set(dd * .016 * b + 1e-9, dd * .16 * b + 1e-9, dd * .016 * b + 1e-9); this.plume.material.opacity = .28 * b; this.arrival.material.opacity = .7 * (1 - (this.povMix || 0)); this.tip.scale.setScalar(this.tip.position.distanceTo(pose.pos) * .07); if (this.ghostArrP) { this.ghostArr.position.copy(this.ghostArrP); this.ghostArr.scale.setScalar(this.ghostArrP.distanceTo(pose.pos) * .035); this.ghostArr.material.opacity = .65 * this.ghostAlpha; } else this.ghostArr.material.opacity = 0; }
       if (this.arrivalP) this.arrival.scale.setScalar(this.arrivalP.distanceTo(pose.pos) * .035);
+      this._updateCraft(c, pose);
       this.ghostL.material.opacity = .5 * this.ghostAlpha; this.altL.forEach((l, i) => { l.material.opacity = i < this.alts.length ? .3 * this.altAlpha : 0; });
     }
     for (const k of this.kits.values()) k.group.visible = false;
@@ -298,6 +301,7 @@ class LunarScene {
     this._raf = requestAnimationFrame(this._loop); const dt = Math.min(.1, (now - this._last) / 1000); this._last = now; this.step(dt);
   }
   step(dt) {
+    this._dt = dt;
     if (this.onTick) this.onTick(dt); if (!this.plan && !this.site) return; if (this._snapN > 0) this._snapN--;
     const full = { x: 0, y: 0, w: this.w, h: this.h }; this.renderer.setScissorTest(false); this.renderer.clear();
     if (this.compare && this.compare.length && this.compareRects.length) {
@@ -309,15 +313,71 @@ class LunarScene {
     if (fl) { fl.k = Math.min(1, fl.k + dt / fl.dur); const e = ease(fl.k), d1 = pose.pos.clone().sub(c.moonP), a0 = Math.max(fl.d0.length() - RM, 2e-6), a1 = Math.max(d1.length() - RM, 2e-6);
       const alt = Math.exp(Math.log(a0) + (Math.log(a1) - Math.log(a0)) * e), dir = slerpDir(fl.d0.clone().normalize(), d1.clone().normalize(), e), er = fl.to === 'surface' ? e * e * e : fl.from === 'surface' ? 1 - Math.pow(1 - e, 3) : e;
       pose = { pos: c.moonP.clone().addScaledVector(dir, RM + alt), quat: fl.q0.clone().slerp(pose.quat, er), fov: fl.fov0 + (pose.fov - fl.fov0) * e }; if (fl.k >= 1) this._fl = null; }
+    pose = this._shake(pose, c);
     this.pose = pose; const alt = pose.pos.distanceTo(c.moonP) - RM, surf = this.scale === 'surface' || (fl && fl.from === 'surface') || (c.siteP && this.plan && c.site === this.plan.site && alt < 0.07 && pose.pos.distanceTo(c.siteP) < 0.3);
     this.surfaceMix = surf ? 1 - smooth(0.004, 0.07, alt) : 0; this._draw(c, pose, this.surfaceMix, full, true);
     const A = this.anchors, P = (p, r) => { const q = this.project(p); q.r = r ? r * q.pxPer : 0; return q; };
-    A.earth = P(V3(), RE); A.moon = P(c.moonP, RM); A.sun = P(c.sunP, 696); if (c.shipP) A.ship = P(c.shipP); if (this.arrivalP) A.arrival = P(this.arrivalP); A.ghostArrival = this.ghostArrP && this.ghostAlpha > .08 ? P(this.ghostArrP) : null;
+    A.earth = P(V3(), RE); A.moon = P(c.moonP, RM); A.sun = P(c.sunP, 696); if (c.shipP) A.ship = P((this.povMix || 0) > .5 && this.craftG && this.craftG.visible ? c.shipP.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(pose.quat), (this._craftScale || 0) * 0.32) : c.shipP); if (this.arrivalP) A.arrival = P(this.arrivalP); A.ghostArrival = this.ghostArrP && this.ghostAlpha > .08 ? P(this.ghostArrP) : null;
     A.sites = {}; const aM = this.sitesG.visible; for (const id in c.siteState) { const st = c.siteState[id], q = P(st.w); q.vis = q.vis && aM && d3(st.U).dot(pose.pos.clone().sub(st.w)) > 0; q.lit = st.lit; q.link = st.link; A.sites[id] = q; }
     A.alts = this.alts.map((p, i) => { const a = this.altL[i].geometry.attributes.position, j = 215 + i * 45; return P(new THREE.Vector3(a.getX(j), a.getY(j), a.getZ(j))); });
     if (this.surfaceMix > .5) { const k = this.kitFor(this.site); A.lander = P(k.beamFrom.clone().applyQuaternion(k.group.quaternion).add(k.group.position)); } else A.lander = null;
     A.sky = c.sk; A.flying = !!this._fl; A.surfaceMix = this.surfaceMix; A.camMoon = pose.pos.distanceTo(c.moonP); A.ship && (A.ship.landed = this.plan && this.time >= this.plan.tLand);
     if (this.onFrame) this.onFrame(A, dt);
+  }
+  // ---------- detailed spacecraft (rocket that stages in flight, then the lander), engine light, exhaust, smoke
+  _buildCraft() {
+    this.craftG = new THREE.Group(); this.rocket = buildRocket(); this.landerM = buildLander(1); deployLander(this.landerM, 1);
+    this.craftG.add(this.rocket, this.landerM); this.root.add(this.craftG);
+    this.engineLight = new THREE.PointLight(0xffa64d, 0, 1e-9, 2); this.craftG.add(this.engineLight);
+    this.exhaust = new Particles(260, 0xffb766, true, 1.2); this.craftG.add(this.exhaust.points);
+    this.smoke = new Particles(400, 0x6f6c68, false, 2); this.root.add(this.smoke.points);
+    this._axis = new THREE.Vector3(0, 1, 0); this._craftScale = 0; this.craftG.visible = false;
+  }
+  _updateCraft(c, pose) {
+    const pl = this.plan, dt = Math.min(this._dt || 0.016, 0.1), G = this.craftG;
+    if (!pl || !c.shipP || this.compare) { G.visible = false; return; }
+    const t = c.t, tau = t - pl.launch, rocketOn = t < pl.tTLI + 240e3, pov = this.povMix || 0;
+    G.visible = this.ship.visible && t >= pl.launch;
+    if (!G.visible) { this.exhaust.update(dt, 0); this.smoke.update(dt, .55); return; }
+    // orientation: engine opposite to thrust while burning, otherwise along the velocity
+    const lunar = t > pl.tA, vel = S.V.sub(S.shipPos(pl, t + 2000), S.shipPos(pl, t - 2000)), rel = lunar ? S.V.sub(vel, S.V.sub(S.moonPos(t + 2000), S.moonPos(t - 2000))) : vel;
+    let ax = d3(S.V.unit(rel)); if (c.burn > 0 && c.plumeDir) ax = c.plumeDir.clone().negate();
+    if (tau < 20e3) ax = c.shipP.clone().normalize().lerp(ax, smooth(4e3, 20e3, tau)).normalize(); // lift off vertically
+    this._axis.lerp(ax, this._snapN > 0 || this.reduceMotion ? 1 : 1 - Math.exp(-dt * 6)).normalize();
+    G.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), this._axis);
+    const dd = c.shipP.distanceTo(pose.pos), s = dd * (0.05 + 0.17 * pov) * (rocketOn ? 1 : 5.2); this._craftScale = s;
+    G.scale.setScalar(s);
+    this.rocket.visible = rocketOn; this.landerM.visible = !rocketOn;
+    let engineY = 0;
+    if (rocketOn) engineY = stageRocket(this.rocket, tau, t > pl.tTLI ? t - pl.tTLI : null);
+    else { engineY = -0.026; deployLander(this.landerM, 1); }
+    const centre = rocketOn ? (tau < 510e3 ? 0.5 : 0.7) : 0.03;
+    G.position.copy(c.shipP).addScaledVector(this._axis, -centre * s);
+    const b = c.burn || 0, eng = new THREE.Vector3(0, engineY, 0), engW = G.localToWorld(eng.clone()).sub(this.root.position);
+    // the sprite glow becomes the engine glow; the plume starts at the engine
+    this.ship.material.opacity = 1 - 0.9 * pov; this.ship.scale.multiplyScalar(0.6 - 0.25 * pov);
+    if (this.plume.visible) { this.plume.position.copy(engW); const k = s * (rocketOn ? 1 : 0.3); this.plume.scale.set(k * .09 * b + 1e-9, k * (.8 + .5 * (tau < 150e3 ? 1 : 0)) * b + 1e-9, k * .09 * b + 1e-9); }
+    this.engineLight.position.copy(eng).add(new THREE.Vector3(0, -0.04, 0)); this.engineLight.intensity = 3 * b; this.engineLight.distance = s * 0.9; this.engineLight.decay = 2; // lights the vehicle only
+    // exhaust (moves with the ship, model units) and smoke trail (stays in the sky, world units) while low in the atmosphere
+    const local = rocketOn ? 1 : 0.18;
+    if (b > 0.05) for (let i = 0; i < 6; i++) this.exhaust.emit((Math.random() - .5) * .02 * local, engineY - 0.01 * local, (Math.random() - .5) * .02 * local, (Math.random() - .5) * .25 * local, -(1.6 + Math.random()) * local, (Math.random() - .5) * .25 * local, 0.18 + Math.random() * 0.15, (0.05 + Math.random() * 0.05) * local, 2);
+    this.exhaust.mat.uniforms.uScale.value = s; this.exhaust.mat.uniforms.uPx.value = this.h * this.renderer.getPixelRatio() / (2 * Math.tan(pose.fov * D2R / 2));
+    this.exhaust.update(dt, b > 0 ? 0.9 : 0.9);
+    const alt = c.shipP.length() - RE;
+    if (b > 0.05 && tau > 500 && tau < 160e3 && alt < 0.08) for (let i = 0; i < 1; i++) { const r = () => (Math.random() - .5) * s * 0.03; this.smoke.emit(engW.x + r(), engW.y + r(), engW.z + r(), r() * .4, r() * .4, r() * .4, 2.5 + Math.random() * 2, s * (0.025 + Math.random() * 0.02), 3); }
+    this.smoke.mat.uniforms.uScale.value = 1; this.smoke.mat.uniforms.uPx.value = this.exhaust.mat.uniforms.uPx.value;
+    this.smoke.update(dt, .2);
+  }
+  // camera shake at liftoff and touchdown (onboard / surface views only)
+  _shake(pose, c) {
+    const pl = this.plan; if (!pl || this.reduceMotion || this.compare) return pose;
+    const tau = (c.t - pl.launch) / 1000, td = (c.t - pl.tLand) / 1000;
+    let a = 0;
+    if ((this.povMix || 0) > .3 && tau >= 0 && tau < 50) a = (this._craftScale || 0) * 0.02 * (1 - tau / 50) * (tau < 3 ? tau / 3 : 1);
+    if (this.surfaceMix > .5 && td >= -5 && td < 12) a = Math.max(a, 2e-7 * (1 - Math.abs(td) / 12));
+    if (a <= 0) return pose;
+    const j = new THREE.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(a);
+    return { pos: pose.pos.clone().add(j), quat: pose.quat, fov: pose.fov };
   }
   _resize() { const p = this.canvas.parentElement; this.w = p.clientWidth || 1; this.h = p.clientHeight || 1; this.renderer.setSize(this.w, this.h, false); this.canvas.style.width = this.w + 'px'; this.canvas.style.height = this.h + 'px'; }
   _pick(x, y) {

@@ -130,7 +130,7 @@ function nextChange(t, site, key) { // hours until lit / link flips (null if > 3
 }
 
 // ---- mission: direct transfer, two-body (Earth-centred conic, lunar arrival patched)
-const R0 = R_E + 185, RLO = R_M + 100, PARK = 1.5 * HOUR, LOITER = 24 * HOUR, DESC = HOUR;
+const R0 = R_E + 185, RLO = R_M + 100, PARK = 1.5 * HOUR, LOITER = 24 * HOUR, DESC = HOUR, ASCENT = 9 * 60000;
 const DEFAULT_REQ = { duration: 14, maxDark: 48, minLink: 50 };
 function computePlan(launch, site, req) {
   req = Object.assign({}, DEFAULT_REQ, req);
@@ -157,7 +157,15 @@ function computePlan(launch, site, req) {
 function shipPos(pl, t) {
   const n0 = Math.sqrt(MU_E / (R0 * R0 * R0));
   if (t <= pl.tTLI) {
-    const tt = Math.max(t, pl.launch), th = -n0 * (pl.tTLI - tt) / 1000, r = R_E + 185 * smooth(0, 600000, tt - pl.launch);
+    const tt = Math.max(t, pl.launch), tau = tt - pl.launch;
+    let th = -n0 * (pl.tTLI - tt) / 1000, r = R0;
+    if (tau < ASCENT) {
+      // Gravity-turn ascent: horizontal speed grows as s² up to orbital speed, altitude follows 3s²-2s³ to 185 km,
+      // so the rocket rises vertically, pitches over and enters the parking orbit horizontally at T+9 min.
+      const s = tau / ASCENT, vo = Math.sqrt(MU_E / R0), T = ASCENT / 1000, D = x => vo * T / 3 * x * x * x;
+      th = -n0 * (pl.tTLI - (pl.launch + ASCENT)) / 1000 - (D(1) - D(s)) / R0;
+      r = R_E + 185 * s * s * (3 - 2 * s);
+    }
     return V.add(V.mul(pl.P, r * Math.cos(th)), V.mul(pl.Q, r * Math.sin(th)));
   }
   const lunar = tt => {
@@ -193,6 +201,27 @@ function evaluate(pl) {
   }
   return { sun, link, sunPct, linkPct, bothPct, longestNight: longest, maxSunEl: maxEl, firstSet, verdict, text };
 }
+// Operational windows during the surface stay, sampled every stepH hours (Horizons data is hourly).
+// Also the mean electrical power of a 1 m² vertical, sun-tracking panel at 30 % efficiency (1361 W/m² at 1 AU):
+// at high latitude the Sun stays near the horizon, so a vertical panel is the realistic choice.
+const SOLAR = 1361, PANEL_EFF = 0.3;
+function windows(pl, stepH = 1) {
+  const n = Math.max(1, Math.round((pl.tEnd - pl.tLand) / (stepH * HOUR))), out = { sun: [], link: [], both: [] }, open = {};
+  let pSum = 0;
+  for (let i = 0; i <= n; i++) {
+    const t = pl.tLand + i * stepH * HOUR, k = sky(t, pl.site), st = { sun: k.lit > 0.5, link: k.link };
+    st.both = st.sun && st.link;
+    if (i < n) pSum += k.lit * Math.cos(Math.max(0, k.sunEl) * D2R);
+    for (const key of ['sun', 'link', 'both']) {
+      if (st[key] && open[key] == null && i < n) open[key] = t;
+      if ((!st[key] || i === n) && open[key] != null) { out[key].push({ start: open[key], end: t, hours: (t - open[key]) / HOUR }); open[key] = null; }
+    }
+  }
+  const frac = pSum / n;
+  out.powerW = SOLAR * PANEL_EFF * frac;
+  out.energyWhDay = out.powerW * 24;
+  return out;
+}
 const RANK = { viable: 2, marginal: 1, not: 0 };
 const score = p => RANK[p.verdict] * 1000 + p.sunPct + 0.5 * p.linkPct;
 function gain(alt, cur) {
@@ -216,5 +245,5 @@ const fmtDate = t => new Date(t).toLocaleDateString(loc(), { month: 'short', day
 const fmtDateY = t => new Date(t).toLocaleDateString(loc(), { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 function burn(pl, t) { const M = 60000; if (t >= pl.launch && t < pl.launch + 9 * M) return { level: 1 - smooth(7 * M, 9 * M, t - pl.launch), kind: 'ascent' }; if (Math.abs(t - pl.tTLI) < 3 * M) return { level: 1, kind: 'tli' }; if (Math.abs(t - pl.tA) < 3 * M) return { level: 1, kind: 'loi' }; if (t > pl.tLand - 12 * M && t < pl.tLand) return { level: 1, kind: 'descent' }; return { level: 0 }; }
 
-export const LunarSim = { burn, V, R_E, R_M, AU, HOUR, DAY, SITES, DEFAULT_REQ, RANK, customSite, sunPos, moonPos, moonFrame, siteNormal, localFrame, terrainOf, sky, nextChange, computePlan, shipPos, shipSpeed, evaluate, alternatives, fmtDur, fmtDate, fmtDateY, clamp, smooth, locale: 'en-US' };
+export const LunarSim = { ASCENT, burn, V, R_E, R_M, AU, HOUR, DAY, SITES, DEFAULT_REQ, RANK, customSite, sunPos, moonPos, moonFrame, siteNormal, localFrame, terrainOf, sky, nextChange, computePlan, windows, shipPos, shipSpeed, evaluate, alternatives, fmtDur, fmtDate, fmtDateY, clamp, smooth, locale: 'en-US' };
 export default LunarSim;

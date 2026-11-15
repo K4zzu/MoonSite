@@ -31,6 +31,13 @@ The generated files are committed (`lunar-data/public`, copied into `MoonSite-we
 runs without Python. Raw downloads (about 230 MB) go to `lunar-data/data_raw/` and are not committed.
 See `lunar-data/README.md` to regenerate them.
 
+## Publish
+
+Deployed with **AWS Amplify Hosting** using `amplify.yml` at the repo root (monorepo, app root `MoonSite-web`).
+One-time setup in the Amplify console: **Create new app → GitHub → this repo, branch `main`**, tick
+**My app is a monorepo** and enter `MoonSite-web`. Every push to `main` then rebuilds and redeploys.
+The build uses relative paths, so `MoonSite-web/dist` also works on any other static host.
+
 ## Features
 
 - Curated sites (south-pole candidates, CLPS, Apollo, international) and custom coordinates.
@@ -40,6 +47,19 @@ See `lunar-data/README.md` to regenerate them.
 - Verdict per mission against editable requirements (stay length, longest night, minimum link).
 - Side-by-side comparison of up to four site/date combinations and a site × date grid.
 - 2D sky chart: terrain horizon with Sun and Earth paths; links to Moon Trek, QuickMap and Horizons.
-- English / Spanish, guided tutorial, reduce-motion option, works on mobile.
+- Launch countdown, a detailed rocket that stages in flight (boosters, fairing, core), the lander unfolding its
+  panels, exhaust and smoke, milestone call-outs, camera shake, letterbox, synthesized sound.
+- Operational windows table (sunlight, Earth link, both) with exact UTC times; tap one to jump there.
+- Power estimate (1 m² vertical panel) and a mission report: printable PDF and CSV.
+- English / Spanish, guided tutorial, keyboard shortcuts, reduce-motion option, works on mobile.
+
+## Accuracy
+
+See `VALIDATION.md`: the app's interpolated Sun/Earth positions differ from independent Horizons queries by less than
+0.005°, and long-term illumination with the LOLA horizon matches published south-pole studies.
+Site coordinates: published landing sites for flown missions, LOLA-snapped crests for candidate regions
+(`lunar-data/scripts/snap_sites.py`).
+
+`PITCH.md` has the demo video script, slide outline and the mapping to the challenge objectives.
 
 Not an official NASA product.

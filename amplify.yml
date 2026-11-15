@@ -1,0 +1,38 @@
+# AWS Amplify Hosting build spec (monorepo: the web app lives in MoonSite-web/).
+# Amplify console: New app -> Host web app -> GitHub -> this repo, branch main.
+# Tick "My app is a monorepo" and set the root directory to MoonSite-web.
+version: 1
+applications:
+  - appRoot: MoonSite-web
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - nvm install 22 && nvm use 22
+            - node -v
+            - npm ci
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: dist
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+      customHeaders:
+        # Hashed JS/CSS bundles never change: cache for a year.
+        - pattern: 'assets/**'
+          headers:
+            - key: Cache-Control
+              value: 'public, max-age=31536000, immutable'
+        # NASA textures and ephemeris data: cache a day, revalidate after.
+        - pattern: 'textures/**'
+          headers:
+            - key: Cache-Control
+              value: 'public, max-age=86400'
+        - pattern: 'data/**'
+          headers:
+            - key: Cache-Control
+              value: 'public, max-age=86400'

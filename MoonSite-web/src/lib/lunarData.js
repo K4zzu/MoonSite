@@ -12,6 +12,17 @@ export const isRealHorizon = d => !!d && !!d.horizon && d.horizon.source && d.ho
 export async function loadLunarData(sites, onEach) {
   const withData = sites.filter(s => s.dataId);
   let done = 0;
+  // Coordinates come from lunar-data/sites.json (published landing sites, LOLA-snapped crests for candidates)
+  try {
+    const r = await fetch(`${BASE}data/sites.json`);
+    if (r.ok) {
+      const idx = (await r.json()).sites || [];
+      for (const s of withData) {
+        const m = idx.find(x => x.id === s.dataId);
+        if (m) { s.lat = m.lat; s.lon = m.lon > 180 ? m.lon - 360 : m.lon; s.position = m.position; s.verified = m.verified; }
+      }
+    }
+  } catch (e) { /* keep built-in coordinates */ }
   await Promise.all(withData.map(async s => {
     try {
       const r = await fetch(`${BASE}data/${s.dataId}.json`);
