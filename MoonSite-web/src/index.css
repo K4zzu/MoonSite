@@ -1,0 +1,8 @@
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+a { color: #6FA8F5; }
+a:hover { color: #9cc3f8; }
+button { font-family: inherit; }
+input[type=range] { accent-color: #F3F1EC; }
+button:active { transform: scale(.97); }
+@keyframes lnspin { to { transform: rotate(360deg); } }
+@keyframes lnpulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }

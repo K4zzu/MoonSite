@@ -1,0 +1,162 @@
+{
+ "version": 1,
+ "source": "JPL Horizons",
+ "start_utc": "2026-12-01T00:00:00Z",
+ "step_min": 60,
+ "n": 17520,
+ "sites": [
+  {
+   "id": "haworth",
+   "name": "Haworth",
+   "group": "South pole candidate",
+   "lat": -86.75,
+   "lon": 337.2,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "de-gerlache-rim",
+   "name": "de Gerlache Rim",
+   "group": "South pole candidate",
+   "lat": -88.67,
+   "lon": 291.6,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "malapert-massif",
+   "name": "Malapert Massif",
+   "group": "South pole candidate",
+   "lat": -85.96,
+   "lon": 359,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "shackleton-rim",
+   "name": "Shackleton Rim",
+   "group": "South pole candidate",
+   "lat": -89.78,
+   "lon": 204.3,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "shackleton-ridge",
+   "name": "Shackleton connecting ridge",
+   "group": "South pole candidate",
+   "lat": -89.45,
+   "lon": 222.7,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "nobile-rim",
+   "name": "Nobile rim",
+   "group": "South pole candidate",
+   "lat": -85.42,
+   "lon": 31.63,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "mons-mouton",
+   "name": "Mons Mouton (IM-2 Athena)",
+   "group": "CLPS",
+   "lat": -84.79,
+   "lon": 29.2,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "malapert-a",
+   "name": "Malapert A (IM-1 Odysseus)",
+   "group": "CLPS",
+   "lat": -80.13,
+   "lon": 1.44,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "blue-ghost-1",
+   "name": "Mare Crisium (Blue Ghost M1)",
+   "group": "CLPS",
+   "lat": 18.562,
+   "lon": 61.81,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "chandrayaan-3",
+   "name": "Chandrayaan-3 (India)",
+   "group": "International",
+   "lat": -69.373,
+   "lon": 32.319,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "change-4",
+   "name": "Chang'e-4 (China, far side)",
+   "group": "International",
+   "lat": -45.444,
+   "lon": 177.599,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "change-6",
+   "name": "Chang'e-6 (China, far side)",
+   "group": "International",
+   "lat": -41.638,
+   "lon": 206.01,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "slim",
+   "name": "SLIM (Japan)",
+   "group": "International",
+   "lat": -13.316,
+   "lon": 25.251,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "apollo-11",
+   "name": "Apollo 11",
+   "group": "Apollo",
+   "lat": 0.674,
+   "lon": 23.473,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "apollo-15",
+   "name": "Apollo 15",
+   "group": "Apollo",
+   "lat": 26.132,
+   "lon": 3.634,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "apollo-17",
+   "name": "Apollo 17",
+   "group": "Apollo",
+   "lat": 20.191,
+   "lon": 30.772,
+   "alt_km": 0,
+   "verified": false
+  },
+  {
+   "id": "reiner-gamma",
+   "name": "Reiner Gamma (Lunar Vertex)",
+   "group": "CLPS",
+   "lat": 7.5,
+   "lon": 301,
+   "alt_km": 0,
+   "verified": false
+  }
+ ]
+}

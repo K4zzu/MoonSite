@@ -1,0 +1,15 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local secrets
+.env
+.env.*

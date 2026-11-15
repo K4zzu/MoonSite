@@ -1,0 +1,38 @@
+/* :hover styles from the design (style-hover). !important beats inline styles. */
+.hv1:hover{color:#F3F1EC !important}
+.hv2:hover{background:#fff !important}
+.hv3:hover{border-color:#F3F1EC !important;background:rgba(40,42,46,.9) !important}
+.hv4:hover{color:#fff !important}
+.hv5:hover{color:#fff !important}
+.hv6:hover{background:rgba(255,255,255,.1) !important}
+.hv7:hover{background:rgba(255,255,255,.08) !important}
+.hv8:hover{background:rgba(255,255,255,.08) !important}
+.hv9:hover{color:#F3F1EC !important}
+.hv10:hover{color:#fff !important}
+.hv11:hover{border-color:rgba(255,255,255,.5) !important}
+.hv12:hover{border-color:rgba(255,255,255,.5) !important}
+.hv13:hover{border-color:rgba(255,255,255,.5) !important;background:rgba(255,255,255,.08) !important}
+.hv14:hover{background:rgba(255,255,255,.08) !important}
+.hv15:hover{background:rgba(255,255,255,.1) !important}
+.hv16:hover{background:rgba(255,255,255,.12) !important}
+.hv17:hover{background:rgba(255,255,255,.12) !important}
+.hv18:hover{color:#fff !important}
+.hv19:hover{background:rgba(255,255,255,.08) !important}
+.hv20:hover{background:rgba(255,255,255,.12) !important}
+.hv21:hover{background:rgba(255,255,255,.08) !important}
+.hv22:hover{color:#fff !important}
+.hv23:hover{color:#fff !important}
+.hv24:hover{color:#fff !important}
+.hv25:hover{background:rgba(255,255,255,.1) !important}
+.hv26:hover{background:rgba(255,255,255,.1) !important}
+.hv27:hover{background:rgba(255,255,255,.08) !important}
+.hv28:hover{background:rgba(255,255,255,.08) !important}
+.hv29:hover{border-color:rgba(243,241,236,.75) !important}
+.hv30:hover{color:#fff !important}
+.hv31:hover{background:rgba(255,255,255,.08) !important}
+.hv32:hover{background:#fff !important}
+.hv33:hover{color:#fff !important}
+.hv34:hover{background:rgba(255,255,255,.08) !important}
+.hv35:hover{background:#fff !important}
+.hv36:hover{background:#fff !important}
+.hv37:hover{background:rgba(255,255,255,.08) !important}
