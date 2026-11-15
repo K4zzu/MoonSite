@@ -146,6 +146,7 @@ Object.assign(ES, {
   '6 · Powered descent': '6 · Descenso propulsado', '6 · Final approach': '6 · Aproximación final',  'A short braking burn half an orbit before the site. The lander now falls from 100 km to 15 km without the engine.': 'Un breve encendido de frenado media órbita antes del sitio. Ahora el módulo cae de 100 km a 15 km sin motor.',  'The engine fires forward to cancel 1.7 km/s of orbital speed. The lander crosses 450 km of ground in 12 minutes.': 'El motor empuja hacia delante para anular 1,7 km/s de velocidad orbital. El módulo recorre 450 km de terreno en 12 minutos.',  'The lander pitches upright so its sensors can see the ground, and picks a safe spot to land.': 'El módulo se endereza para que sus sensores vean el suelo y elige un lugar seguro para posarse.',  'The engine blasts the dust away. With no air, it flies out in straight lines and nothing hangs in the sky.': 'El motor barre el polvo. Sin aire, sale disparado en línea recta y nada queda flotando.',  'Tower cleared': 'Torre despejada', 'Deorbit burn': 'Encendido de desorbitación', 'Perilune lowered to 15 km': 'Perilunio rebajado a 15 km', 'Braking from 1.7 km/s': 'Frenando desde 1,7 km/s',  'High gate': 'Puerta alta', 'The lander pitches upright': 'El módulo se endereza', 'Engine cut-off': 'Apagado del motor', 'Altitude': 'Altitud',  'Main engine cut-off · second stage ignition': 'Apagado del motor principal · encendido de la segunda etapa', 'Ground camera': 'Cámara en tierra',
   'Real case · 2025': 'Caso real · 2025', 'IM-2 Athena at Mons Mouton: what a one-week slip would have done': 'IM-2 Athena en Mons Mouton: qué habría pasado con una semana de retraso',
   'A real south-pole landing with almost no light margin. Watch it next to the same mission one week late, without replanning, then replan it yourself.': 'Un alunizaje real en el polo sur con casi nada de margen de luz. Míralo junto a la misma misión una semana tarde y sin replanificar, y luego replanifícala tú.',
+  'One day later': 'Un día después', 'Waiting in lunar orbit for the landing site to pass below': 'Esperando en órbita lunar a que el sitio de alunizaje pase por debajo',
   'Watch the case': 'Ver el caso', 'Real mission: in a crater, on its side': 'Misión real: en un cráter, de lado', 'End of the real mission': 'Fin de la misión real',
   'Batteries depleted: no sunlight on the panels': 'Baterías agotadas: sin luz en los paneles', 'Good window · real mission lost in 13 h': 'Buena ventana · misión real perdida en 13 h',
 });
@@ -211,8 +212,11 @@ function ping(c, x, y, color) {
 function eventRate(pl, t) {
   const M = 60000, d = (t - pl.launch) / 1000, s = (pl.tLand - t) / 1000, near = (x, c, w) => Math.abs(x - c) < w;
   if (d >= 0 && d < 600) return d < 10 ? 2.5 : d < 40 ? 10 : near(d, 72, 5) || near(d, 150, 7) || near(d, 210, 7) || (d > 498 && d < 520) ? 12 : 40;
-  if (Math.abs(t - pl.tTLI) < 4 * M) return 30; if (Math.abs(t - pl.tA) < 4 * M) return 30;
-  if (near(s, LunarSim.DEORBIT_S, 40)) return 20;
+  if (d >= 600 && t < pl.tTLI - 4 * M) return 800; // parking orbit, seen from on board: about six seconds for most of a lap
+  if (Math.abs(t - pl.tTLI) < 4 * M) return 30;
+  // lunar arrival: a steady pace for the swing past the Moon, the insertion burn, the first minutes in orbit
+  if (t > pl.tA - 90 * M && t < pl.tA - 4 * M) return 500; if (Math.abs(t - pl.tA) < 4 * M) return 60; if (t > pl.tA && t < pl.tA + 15 * M) return 120;
+  if (near(s, LunarSim.DEORBIT_S, 40)) return 20; if (s > 840 && s < LunarSim.DEORBIT_S) return 600; // coast down from 100 km to 15 km
   if (s > 0 && s < 40) return 4.5; if (s > 0 && s < 150) return 9; if (s > 0 && s < 840) return 45;
   if (s <= 0 && s > -20) return 4; if (s <= 0 && s > -90) return 15; return 1e9;
 }

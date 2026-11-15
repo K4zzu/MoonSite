@@ -105,3 +105,14 @@ test('real case IM-2: good window on the real date, the same mission one week la
   assert.ok(S.alternatives(c.ghost, c.plan).some(a => !a.original && a.plan.verdict === 'viable'), 'replanning offers a viable alternative');
   assert.match(caseStory({ ...c }, c.plan, c.plan.tLand + 20 * H, 'en')[1], /grey route/);
 });
+
+test('lunar arrival: the craft speeds up as it falls towards the Moon, then the insertion burn slows it into orbit', () => {
+  const pl = S.computePlan(launch, site('shackleton'));
+  const vRel = t => S.V.len(S.V.sub(S.V.sub(S.shipPos(pl, t + 500), S.moonPos(t + 500)), S.V.sub(S.shipPos(pl, t - 500), S.moonPos(t - 500))));
+  assert.ok(vRel(pl.tA - 30 * 60000) > vRel(pl.tA - 3 * H), 'faster close to the Moon than far from it');
+  assert.ok(vRel(pl.tA - 2 * 60000) > 2.2, `near periapsis ${vRel(pl.tA - 2 * 60000).toFixed(2)} km/s`);
+  assert.ok(Math.abs(vRel(pl.tA + 10 * 60000) - 1.63) < 0.02, 'circular lunar orbit after the burn');
+  for (let t = pl.tA - 12 * H; t < pl.tA + H; t += 20000) assert.ok(S.V.len(S.V.sub(S.shipPos(pl, t), S.moonPos(t))) - S.R_M > 99, 'never below the 100 km orbit on the way in');
+  const vE = t => S.V.len(S.V.sub(S.shipPos(pl, t + 500), S.shipPos(pl, t - 500)));
+  assert.ok(vE(pl.tTLI) > vE(pl.tTLI - 4 * 60000) && vE(pl.tTLI) < vE(pl.tTLI + 4 * 60000), 'translunar burn accelerates gradually');
+});

@@ -111,9 +111,12 @@ class LunarScene {
   }
   _earth() {
     const real = this.tex && this.tex.earth, t = real || new THREE.CanvasTexture(earthCanvas()); if (!real) { t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; }
-    this.earth = new THREE.Mesh(new THREE.SphereGeometry(RE, 192, 128), new THREE.MeshStandardMaterial({ map: t, roughness: .85, metalness: 0, emissive: real ? 0x050c1a : 0x0d2244, emissiveIntensity: 1 }));
+    this.earth = new THREE.Mesh(new THREE.SphereGeometry(RE, 192, 128), new THREE.MeshLambertMaterial({ map: t, emissive: real ? 0x050c1a : 0x0d2244, emissiveIntensity: 1 }));
     this.earth.add(new THREE.Mesh(new THREE.SphereGeometry(RE * 1.005, 128, 96), new THREE.MeshBasicMaterial({ color: 0x4d8fe0, transparent: true, opacity: .4, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false })));
     X.addDetail(this.earth.material, X.detailTex(false), 4.3, 37, real ? .12 : .3); this.root.add(this.earth);
+    // Matte (Lambert) on purpose: a physically based material turns the ground into a grey mirror when seen at a grazing
+    // angle with the Sun low, which is exactly the launch view. Full anisotropy keeps the Blue Marble sharp near the horizon.
+    t.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
   }
   _moon() {
     this._detail = X.detailTex(true); const real = this.tex && this.tex.moon, c = real ? null : moonCanvas(), t = real || new THREE.CanvasTexture(c), b = (this.tex && this.tex.relief) || new THREE.CanvasTexture(c || moonCanvas()); if (!real) { t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; }
@@ -227,7 +230,7 @@ class LunarScene {
       const idx = (arr) => { let lo = 0, hi = arr.length - 1; if (t <= arr[0]) return 0; if (t >= arr[hi]) return hi; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (arr[m] <= t) lo = m; else hi = m; } return lo; };
       const lim = Math.max(2, Math.round(NE * this.drawFrac)), ke = Math.min(idx(this.te), lim - 1), kl = idx(this.tl), showL = this.drawFrac >= 1;
       this.doneE.geometry.setDrawRange(0, ke + 1); this.todoE.geometry.setDrawRange(ke, lim - ke); this.doneL.geometry.setDrawRange(0, kl + 1); this.todoL.geometry.setDrawRange(kl, NL - kl); this.doneL.visible = this.todoL.visible = showL;
-      this.arrival.position.copy(this.arrivalP); this.arrival.visible = t < pl.tA;
+      this.arrival.position.copy(this.arrivalP); this.arrival.visible = t < pl.tA - 2 * S.HOUR; // in the last hours the Moon itself is there
       const tr = this.trail.geometry.attributes.position, cd = c.shipP.distanceTo(this.pose.pos), sp3 = Math.max(S.shipSpeed(pl, t), .3), lunar0 = t > pl.tA, dt = Math.min(cd * 1000 * .35 / sp3 / 32 * 1000, lunar0 ? 60000 : 240000), lunar = t > pl.tA, m0 = lunar ? S.moonPos(t) : null;
       for (let i = 0; i < 32; i++) { const tt = Math.max(pl.launch, t - i * dt); let p = S.shipPos(pl, tt); if (lunar) p = S.V.add(S.V.sub(p, S.moonPos(tt)), m0); tr.setXYZ(i, p[0] * K, p[2] * K, -p[1] * K); }
       tr.needsUpdate = true; this.trail.visible = this.ship.visible = t < pl.tLand;
@@ -328,9 +331,9 @@ class LunarScene {
     const R = this.renderer, cam = this.cam; this.root.position.copy(pose.pos).negate(); cam.quaternion.copy(pose.quat); cam.fov = pose.fov; cam.aspect = rect.w / rect.h; cam.updateProjectionMatrix();
     const focus = (mixS > 0 ? c.siteP : c.moonP).clone().sub(pose.pos), sd = c.sunP.clone().sub(mixS > 0 ? c.siteP : c.moonP).normalize();
     this.sunLight.target.position.copy(focus); this.sunLight.position.copy(focus).addScaledVector(sd, mixS > .5 ? 0.004 : 100); this.sunLight.castShadow = mixS > .5; this.sunLight.target.updateMatrixWorld();
-    this.moonMesh.scale.setScalar(1 - 0.004 * mixS); this.earth.children[0].material.opacity = .06 + .34 * smooth(.3, 4, pose.pos.length() - RE); if (this.earth.material.userData.dAmt) this.earth.material.userData.dAmt.value = 1 - smooth(.5, 2, pose.pos.length() - RE);
+    this.moonMesh.scale.setScalar(1 - 0.004 * mixS); const altE = pose.pos.length() - RE; this.earth.children[0].material.opacity = .06 + .34 * smooth(.3, 4, altE); if (this.earth.material.userData.dAmt) this.earth.material.userData.dAmt.value = 1 - smooth(.5, 2, pose.pos.length() - RE);
     const camMoon = pose.pos.distanceTo(c.moonP), aMoon = (1 - smooth(14, 60, camMoon)) * (1 - mixS) * (1 - (this.povMix || 0)), far = mixS < .9 && !(this.compare && this.compareMode === 'surface');
-    this.transitG.visible = far; this.moonC.visible = far; this.ship.visible = this.ship.visible && (far || (this.povMix || 0) > .5); this.trail.visible = this.trail.visible && far; // onboard, the craft stays in view down to the surface
+    this.transitG.visible = far; this.moonC.visible = far; this.ship.visible = this.ship.visible && (far || (this.povMix || 0) > .5); this.trail.visible = this.trail.visible && far && (this.povMix || 0) < .5; // onboard, the craft stays in view down to the surface; its trail (seen edge-on) does not
     const nearK = smooth(20, 90, camMoon), arrived = this.plan && c.t > this.plan.tA ? nearK : 1; this.ringL.material.opacity = .13 * nearK * (1 - (this.povMix || 0)); /* hidden onboard: seen edge-on it is a stray line */ const pv = 1 - (this.povMix || 0); this.doneE.material.opacity = .95 * arrived * pv; this.doneL.material.opacity = .95 * pv; this.todoL.material.opacity = .26 * pv; this.todoE.material.opacity = .26 * arrived * pv; this.sitesG.visible = aMoon > .01; this.links.visible = aMoon > .01; this.links.material.opacity = .42 * aMoon;
     if (main) {
       for (const sp of this.sitesG.children) { const s = sp.userData.site, st = c.siteState[s.id], d = st.w.distanceTo(pose.pos), hot = s.id === this.selectedId || (this.hover && this.hover.site === s);
@@ -385,7 +388,7 @@ class LunarScene {
     const alt = pose.pos.distanceTo(c.moonP) - RM, atSite = this.scale === 'surface' || (fl && fl.from === 'surface'), nearSite = c.siteP && this.plan && c.site === this.plan.site ? 1 - smooth(0.12, 0.2, pose.pos.distanceTo(c.siteP)) : 0;
     this.surfaceMix = (1 - smooth(0.004, 0.07, alt)) * (atSite ? 1 : nearSite); this._draw(c, pose, this.surfaceMix, full, true);
     const A = this.anchors, proj = (p, r) => { const q = this.project(p); q.r = r ? r * q.pxPer : 0; return q; };
-    A.earth = proj(V3(), RE); A.moon = proj(c.moonP, RM); A.sun = proj(c.sunP, 696); if (c.shipP) A.ship = proj((this.povMix || 0) > .5 && this.craftG && this.craftG.visible ? c.shipP.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(pose.quat), (this._craftScale || 0) * 0.32) : c.shipP); A.arrival = this.arrivalP && this.plan && c.t < this.plan.tA ? proj(this.arrivalP) : null; A.ghostArrival = this.ghostArrP && this.ghostAlpha > .08 ? proj(this.ghostArrP) : null;
+    A.earth = proj(V3(), RE); A.moon = proj(c.moonP, RM); A.sun = proj(c.sunP, 696); if (c.shipP) A.ship = proj((this.povMix || 0) > .5 && this.craftG && this.craftG.visible ? c.shipP.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(pose.quat), (this._craftScale || 0) * 0.32) : c.shipP); A.arrival = this.arrivalP && this.plan && c.t < this.plan.tA - 2 * S.HOUR ? proj(this.arrivalP) : null; A.ghostArrival = this.ghostArrP && this.ghostAlpha > .08 ? proj(this.ghostArrP) : null;
     A.sites = {}; const aM = this.sitesG.visible; for (const id in c.siteState) { const st = c.siteState[id], q = proj(st.w); q.vis = q.vis && aM && d3(st.U).dot(pose.pos.clone().sub(st.w)) > 0; q.lit = st.lit; q.link = st.link; A.sites[id] = q; }
     A.alts = this.alts.map((p, i) => { const a = this.altL[i].geometry.attributes.position, j = 215 + i * 45; return proj(new THREE.Vector3(a.getX(j), a.getY(j), a.getZ(j))); });
     if (this.surfaceMix > .5) { const k = this.kitFor(this.site); A.lander = proj(k.beamFrom.clone().applyQuaternion(k.group.quaternion).add(k.group.position)); } else A.lander = null;

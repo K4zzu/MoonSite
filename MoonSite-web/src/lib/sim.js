@@ -160,11 +160,25 @@ function computePlan(launch, site, req) {
   }
   const mA = moonPos(tA), vM = moonVel(tA), h = V.unit(V.cross(mA, vM)), P = V.rot(V.unit(mA), h, -nu), Q = V.cross(h, P), p = a * (1 - e * e);
   const vArr = V.mul(V.add(V.mul(P, -Math.sin(nu)), V.mul(Q, e + Math.cos(nu))), Math.sqrt(MU_E / p)), vInf = V.len(V.sub(vArr, vM));
-  const at = (RLO + R_M) / 2, vLO = Math.sqrt(MU_M / RLO);
-  const tLand = tA + LOITER, tEnd = tLand + req.duration * DAY, nS = siteNormal(tLand, site);
-  let b = V.cross(h, nS); if (V.len(b) < 0.05) b = V.cross([1, 0, 0], nS); b = V.unit(b);
+  const at = (RLO + R_M) / 2, vLO = Math.sqrt(MU_M / RLO), nLO = Math.sqrt(MU_M / (RLO * RLO * RLO));
+  // Lunar arrival as a patched conic: a hyperbola around the Moon whose periapsis (100 km) is the orbit insertion point.
+  // The time spent in lunar orbit before descent (24 h plus a fraction of an orbit) sets where that point is; pick the
+  // one whose inbound asymptote points back along the real approach, so the craft swings in from the Earth side.
+  const eH = 1 + RLO * vInf * vInf / MU_M, nuInf = Math.acos(-1 / eH), AH = MU_M / (vInf * vInf);
+  const conic0 = { tTLI, a, e, n, P, Q }, dIn = V.unit(V.sub(conicPos(conic0, tA - 8 * HOUR), moonPos(tA - 8 * HOUR)));
+  const orbitT = 2 * Math.PI / nLO * 1000;
+  let best = null;
+  for (let i = 0; i < 24; i++) {
+    const tL = tA + LOITER + i * orbitT / 24, nS1 = siteNormal(tL, site);
+    let b1 = V.cross(h, nS1); if (V.len(b1) < 0.05) b1 = V.cross([1, 0, 0], nS1); b1 = V.unit(b1);
+    const tmp = { tLand: tL, site, nS: nS1, b: b1, nLO }, r0 = lunarRel(tmp, tA), Ph = V.unit(r0);
+    let Qh = V.sub(lunarRel(tmp, tA + 1000), r0); Qh = V.unit(V.sub(Qh, V.mul(Ph, V.dot(Qh, Ph))));
+    const score = V.dot(V.add(V.mul(Ph, Math.cos(nuInf)), V.mul(Qh, -Math.sin(nuInf))), dIn);
+    if (!best || score > best.score) best = { score, tL, nS: nS1, b: b1, hyp: { P: Ph, Q: Qh, A: AH, e: eH, n: Math.sqrt(MU_M / (AH * AH * AH)) } };
+  }
+  const tLand = best.tL, tEnd = tLand + req.duration * DAY, nS = best.nS, b = best.b;
   const plan = {
-    launch, site, req, tTLI, tA, tLand, tEnd, a, e, n, P, Q, h, nS, b, nLO: Math.sqrt(MU_M / (RLO * RLO * RLO)),
+    launch, site, req, tTLI, tA, tLand, tEnd, a, e, n, P, Q, h, nS, b, nLO, hyp: best.hyp,
     dv: { tli: Math.sqrt(MU_E * (2 / R0 - 1 / a)) - Math.sqrt(MU_E / R0), loi: Math.sqrt(vInf * vInf + 2 * MU_M / RLO) - vLO, descent: vLO - Math.sqrt(MU_M * (2 / RLO - 1 / at)) + Math.sqrt(MU_M * (2 / R_M - 1 / at)) },
     tof: (tA - tTLI) / DAY
   };
@@ -173,7 +187,7 @@ function computePlan(launch, site, req) {
 }
 function shipPos(pl, t) {
   const n0 = Math.sqrt(MU_E / (R0 * R0 * R0));
-  if (t <= pl.tTLI) {
+  if (t <= pl.tTLI - BURN) {
     const tt = Math.max(t, pl.launch), tau = tt - pl.launch;
     let th = -n0 * (pl.tTLI - tt) / 1000, r = R0;
     if (tau < ASCENT) {
@@ -185,12 +199,30 @@ function shipPos(pl, t) {
     }
     return V.add(V.mul(pl.P, r * Math.cos(th)), V.mul(pl.Q, r * Math.sin(th)));
   }
-  if (t >= pl.tA) return V.add(moonPos(t), lunarRel(pl, t));
-  const M = pl.n * (t - pl.tTLI) / 1000; let E = Math.PI;
-  for (let i = 0; i < 60; i++) { const dE = (E - pl.e * Math.sin(E) - M) / (1 - pl.e * Math.cos(E)); E -= dE; if (Math.abs(dE) < 1e-13) break; }
-  const k = V.add(V.mul(pl.P, pl.a * (Math.cos(E) - pl.e)), V.mul(pl.Q, pl.a * Math.sqrt(1 - pl.e * pl.e) * Math.sin(E)));
-  const w = smooth(pl.tA - 5 * HOUR, pl.tA, t);
-  return w > 0 ? V.lerp(k, V.add(moonPos(t), pl.relA || (pl.relA = lunarRel(pl, pl.tA))), w) : k;
+  // the translunar burn takes a few minutes: blend from the parking orbit onto the transfer ellipse instead of jumping
+  if (t < pl.tTLI + BURN) return V.lerp(parkPos(pl, t), conicPos(pl, t), smooth(pl.tTLI - BURN, pl.tTLI + BURN, t));
+  if (t >= pl.tA + BURN) return V.add(moonPos(t), lunarRel(pl, t));
+  // lunar orbit insertion: brake from the hyperbola's periapsis speed (~2.4 km/s) to orbital speed (1.63 km/s)
+  if (t >= pl.tA - BURN) return V.add(moonPos(t), V.lerp(hypRel(pl, t), lunarRel(pl, t), smooth(pl.tA - BURN, pl.tA + BURN, t)));
+  const k = conicPos(pl, t);
+  if (t < pl.tA - ARR0) return k;
+  // entering the Moon's sphere of influence: hand over from the Earth-centred ellipse to the lunar hyperbola,
+  // so the craft speeds up as it falls towards the Moon instead of slowing to a stop
+  return V.lerp(k, V.add(moonPos(t), hypRel(pl, t)), smooth(pl.tA - ARR0, pl.tA - ARR1, t));
+}
+const BURN = 3 * 60000, ARR0 = 10 * HOUR, ARR1 = 3 * HOUR;
+function parkPos(pl, t) { const n0 = Math.sqrt(MU_E / (R0 * R0 * R0)), th = n0 * (t - pl.tTLI) / 1000; return V.add(V.mul(pl.P, R0 * Math.cos(th)), V.mul(pl.Q, R0 * Math.sin(th))); }
+/** Earth-centred transfer ellipse (perigee at the translunar burn). */
+function conicPos(pl, t) {
+  const M = pl.n * (t - pl.tTLI) / 1000, e = pl.e; let E = M + Math.sign(M || 1) * 0.85 * e;
+  for (let i = 0; i < 80; i++) { const dE = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E)); E -= clamp(dE, -1, 1); if (Math.abs(dE) < 1e-13) break; }
+  return V.add(V.mul(pl.P, pl.a * (Math.cos(E) - e)), V.mul(pl.Q, pl.a * Math.sqrt(1 - e * e) * Math.sin(E)));
+}
+/** Moon-centred approach hyperbola, periapsis (100 km altitude) at the orbit insertion time. */
+function hypRel(pl, t) {
+  const hy = pl.hyp, M = hy.n * (t - pl.tA) / 1000; let H = Math.asinh(M / hy.e);
+  for (let i = 0; i < 60; i++) { const dH = (hy.e * Math.sinh(H) - H - M) / (hy.e * Math.cosh(H) - 1); H -= dH; if (Math.abs(dH) < 1e-12) break; }
+  return V.add(V.mul(hy.P, hy.A * (hy.e - Math.cosh(H))), V.mul(hy.Q, hy.A * Math.sqrt(hy.e * hy.e - 1) * Math.sinh(H)));
 }
 // Position relative to the Moon's centre once in lunar orbit: polar orbit over the site, deorbit coast, powered descent.
 // The orbit plane is inertial; during the last hour it turns with the Moon so the track ends exactly on the site.
@@ -207,7 +239,8 @@ function descentState(pl, t) {
   const s = (pl.tLand - t) / 1000;
   return { s, alt: descentAlt(s), pitch: 18 + 72 * smooth(200, 45, s) };
 }
-const shipSpeed = (pl, t) => t >= pl.tLand ? 0 : V.len(V.sub(shipPos(pl, t + 5000), shipPos(pl, t - 5000))) / 10;
+// speed relative to Earth on the way out, relative to the Moon once it dominates (from 10 h before arrival)
+const shipSpeed = (pl, t) => { if (t >= pl.tLand) return 0; const d = V.sub(shipPos(pl, t + 5000), shipPos(pl, t - 5000)); return V.len(t > pl.tA - ARR0 ? V.sub(d, V.sub(moonPos(t + 5000), moonPos(t - 5000))) : d) / 10; };
 const NS = 168;
 function evaluate(pl) {
   const sun = new Float32Array(NS), link = new Uint8Array(NS), dt = (pl.tEnd - pl.tLand) / NS;
