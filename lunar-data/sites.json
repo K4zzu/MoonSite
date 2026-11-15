@@ -5,15 +5,15 @@
    "id": "haworth",
    "name": "Haworth",
    "group": "South pole candidate",
-   "lat": -86.7909,
-   "lon": 337.694,
+   "lat": -86.7725,
+   "lon": 339.434,
    "alt_km": 0,
    "verified": true,
    "nominal": {
     "lat": -86.75,
     "lon": 337.2
    },
-   "position": "LOLA crest within 1.5 km of the nominal point"
+   "position": "best-lit point in 2027 with slope under 8 deg, within 10 km of the nominal point (LOLA horizon)"
   },
   {
    "id": "de-gerlache-rim",
@@ -33,15 +33,15 @@
    "id": "malapert-massif",
    "name": "Malapert Massif",
    "group": "South pole candidate",
-   "lat": -85.9814,
-   "lon": 358.366,
+   "lat": -85.9526,
+   "lon": 356.618,
    "alt_km": 0,
    "verified": true,
    "nominal": {
     "lat": -85.96,
     "lon": 359
    },
-   "position": "LOLA crest within 1.5 km of the nominal point"
+   "position": "best-lit point in 2027 with slope under 8 deg, within 10 km of the nominal point (LOLA horizon)"
   },
   {
    "id": "shackleton-rim",

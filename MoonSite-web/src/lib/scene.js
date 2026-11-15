@@ -79,15 +79,15 @@ class LunarScene {
     this._loop = this._loop.bind(this); this._bind();
   }
   async init() {
-    const step = (p, l) => new Promise(res => { this.onProgress && this.onProgress(p, l); setTimeout(res, 70); });
+    const step = (p, l) => new Promise(res => { this.onProgress?.(p, l); setTimeout(res, 70); });
     await step(.08, 'Placing the stars'); this._stars();
     await step(.25, 'Painting the Earth'); await this._loadTextures(); this._earth();
     await step(.5, 'Sculpting the Moon'); this._moon();
     await step(.78, 'Plotting the route'); this._lines();
     await step(.92, 'Surveying the landing site'); if (this.site) this.kitFor(this.site);
-    await step(1, 'Ready'); this.ready = true; this._resize(); this._last = performance.now(); this._raf = requestAnimationFrame(this._loop); this.onReady && this.onReady();
+    await step(1, 'Ready'); this.ready = true; this._resize(); this._last = performance.now(); this._raf = requestAnimationFrame(this._loop); this.onReady?.();
   }
-  dispose() { cancelAnimationFrame(this._raf); this._ro && this._ro.disconnect(); this.renderer.dispose(); }
+  dispose() { cancelAnimationFrame(this._raf); this._ro?.disconnect(); this.renderer.dispose(); }
 
   _stars() {
     const n = 4500, p = new Float32Array(n * 3), c = new Float32Array(n * 3); let a = 99; const r = () => { a = Math.imul(a, 1664525) + 1013904223 | 0; return (a >>> 0) / 4294967296; };
@@ -179,14 +179,26 @@ class LunarScene {
     add(new THREE.CylinderGeometry(1.5, 1.8, 1.5, 8), foil, 0, 1.9, 0); add(new THREE.CylinderGeometry(.9, 1.4, 1, 8), white, 0, 3.1, 0);
     for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + .78, leg = add(new THREE.CylinderGeometry(.07, .07, 2.6, 5), white, Math.cos(a) * 2.1, .95, Math.sin(a) * 2.1); leg.rotation.set(Math.sin(a) * -.6, 0, Math.cos(a) * .6); add(new THREE.CylinderGeometry(.35, .35, .08, 8), white, Math.cos(a) * 2.75, .04, Math.sin(a) * 2.75); }
     add(new THREE.CylinderGeometry(.04, .04, 1.4, 4), white, .5, 4.2, 0); add(new THREE.SphereGeometry(.5, 12, 8, 0, 6.2832, 0, 1.1), white, .5, 4.9, 0).rotation.x = Math.PI;
-    put(L, kit.landerAz * D2R, 0.03); kit.lander = L; kit.beamFrom = L.position.clone().add(new THREE.Vector3(0, 4.9e-6, 0));
-    kit.dust = new THREE.Sprite(new THREE.SpriteMaterial({ map: this._soft || (this._soft = spriteTex('soft')), color: 0xb8b1a4, transparent: true, opacity: 0, depthWrite: false })); kit.dust.position.copy(L.position).add(new THREE.Vector3(0, 1.2e-6, 0)); kit.group.add(kit.dust);
+    // same lander as in flight: two solar wings (turned to face the Sun at landing) and the descent engine
+    const panel = M(0x0c1530, { metalness: .25, roughness: .45 }), frame = M(0x2c2e33, { metalness: .5, roughness: .55 });
+    for (const sd of [-1, 1]) { add(new THREE.BoxGeometry(3.3, 1.5, .05), panel, sd * 3.35, 2.6, 0); add(new THREE.BoxGeometry(3.4, 1.6, .03), frame, sd * 3.35, 2.6, -.03); add(new THREE.CylinderGeometry(.05, .05, .9, 4), frame, sd * 1.6, 2.6, 0).rotation.z = Math.PI / 2; }
+    add(new THREE.LatheGeometry([[.28, 1.15], [.34, 1.0], [.5, .78], [.62, .58]].map(([r, y]) => new THREE.Vector2(r, y)), 20), frame, 0, 0, 0);
+    const sunAz = S.sky(this.time, site).sunAz; L.rotation.y = Math.PI - sunAz * D2R; // panel normal (local +z) towards the Sun
+    put(L, kit.landerAz * D2R, 0.03); kit.lander = L; kit.landerHome = L.position.clone(); kit.landerYaw = L.rotation.y; kit.beamFrom = L.position.clone().add(new THREE.Vector3(0, 4.9e-6, 0));
+    // descent engine: faint vacuum plume, a bright throat glow you can spot from kilometres away, and light on the ground
+    const pg = new THREE.ConeGeometry(.9, 1, 16, 6, true); pg.translate(0, -.5, 0); const pc = new Float32Array(pg.attributes.position.count * 3);
+    for (let i = 0; i < pg.attributes.position.count; i++) { const f = Math.pow(1 + pg.attributes.position.getY(i), 2.2); pc.set([f, f * .86, f * .7], i * 3); } pg.setAttribute('color', new THREE.BufferAttribute(pc, 3)); // bright at the nozzle, gone at the tip
+    kit.plume = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); kit.plume.position.y = .6; L.add(kit.plume);
+    kit.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.ship.material.map, color: 0xffe2bf, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 })); kit.glow.position.y = .5; L.add(kit.glow);
+    kit.engLight = new THREE.PointLight(0xffc890, 0, 9e-5, 2); kit.engLight.position.y = -.5; L.add(kit.engLight);
+    // lunar dust: no air, so it sprays out flat and fast in straight lines and is gone within seconds
+    kit.dust = new Particles(700, 0xb5aea1, false, 1.4); kit.group.add(kit.dust.points);
     kit.beam = this._mkLine(2, BLUE, .9, kit.group); kit.sunPath = this._mkLine(140, GOLD, .4, kit.group); kit.earthPath = this._mkLine(140, BLUE, .45, kit.group);
     kit.group.visible = false; this.root.add(kit.group); this.kits.set(key, kit); return kit;
   }
   flyTo(scale, instant) {
     if (scale === this.scale && !instant) return; const from = this.scale; this.scale = scale;
-    if (scale === 'surface') this.surfaceView.yaw = null;
+    if (scale === 'surface') { this.surfaceView.yaw = null; this._userLook = false; this._settle = false; }
     if (scale === 'moon') this.aimMoon();
     if (instant || !this.ready) { this._fl = null; return; }
     const long = scale === 'surface' || from === 'surface';
@@ -219,7 +231,15 @@ class LunarScene {
       const tr = this.trail.geometry.attributes.position, cd = c.shipP.distanceTo(this.pose.pos), sp3 = Math.max(S.shipSpeed(pl, t), .3), lunar0 = t > pl.tA, dt = Math.min(cd * 1000 * .35 / sp3 / 32 * 1000, lunar0 ? 60000 : 240000), lunar = t > pl.tA, m0 = lunar ? S.moonPos(t) : null;
       for (let i = 0; i < 32; i++) { const tt = Math.max(pl.launch, t - i * dt); let p = S.shipPos(pl, tt); if (lunar) p = S.V.add(S.V.sub(p, S.moonPos(tt)), m0); tr.setXYZ(i, p[0] * K, p[2] * K, -p[1] * K); }
       tr.needsUpdate = true; this.trail.visible = this.ship.visible = t < pl.tLand;
-      const bn = S.burn(pl, t); c.burn = this.burnOverride != null ? bn.level * this.burnOverride : bn.level; if (bn.level > 0) { let vv = S.V.sub(S.shipPos(pl, t + 2000), S.shipPos(pl, t - 2000)); if (bn.kind === 'loi' || bn.kind === 'descent') vv = S.V.sub(vv, S.V.sub(S.moonPos(t + 2000), S.moonPos(t - 2000))); const vd = d3(S.V.unit(vv)); c.plumeDir = bn.kind === 'ascent' || bn.kind === 'tli' ? vd.negate() : bn.kind === 'descent' && c.U ? vd.multiplyScalar(.4).addScaledVector(c.U, -.6).normalize() : vd; }
+      const bn = S.burn(pl, t); c.burn = this.burnOverride != null ? bn.level * this.burnOverride : bn.level; if (bn.level > 0) {
+        let vv = S.V.sub(S.shipPos(pl, t + 2000), S.shipPos(pl, t - 2000)); const moonRel = bn.kind === 'loi' || bn.kind === 'deorbit' || bn.kind === 'descent';
+        if (moonRel) vv = S.V.sub(vv, S.V.sub(S.moonPos(t + 2000), S.moonPos(t - 2000)));
+        const vd = d3(S.V.unit(vv));
+        if (bn.kind === 'descent') { // braking with the engine forward, pitching up to vertical for the final approach
+          const up = d3(S.V.unit(S.V.sub(S.shipPos(pl, t), S.moonPos(t)))), hor = vd.clone().addScaledVector(up, -vd.dot(up)), p = S.descentState(pl, t).pitch * D2R;
+          if (hor.lengthSq() > 1e-12) hor.normalize(); c.plumeDir = up.multiplyScalar(-Math.sin(p)).addScaledVector(hor, Math.cos(p)).normalize();
+        } else c.plumeDir = bn.kind === 'ascent' || bn.kind === 'tli' ? vd.negate() : vd;
+      }
       this.tip.visible = this.drawFrac < 1 && this.drawFrac > 0; if (this.tip.visible) { const a2 = this.todoE.geometry.attributes.position, j = lim - 1; this.tip.position.set(a2.getX(j), a2.getY(j), a2.getZ(j)); }
     }
     return c;
@@ -241,9 +261,47 @@ class LunarScene {
     return surf();
   }
   defaultYaw(sk) { const hf = Math.atan(Math.tan(23 * D2R) * (this.w / this.h)) / D2R; return sk.earthAz - 9 - (hf > 25 ? 14 : -4.5); }
+  /** Seconds before touchdown during which the ground camera shows the lander coming down. */
+  static LAND_VIS = 260;
+  /** Descending lander in the site kit's local frame (x east, y up, z south; scene units): offset from its landing spot and nose direction. */
+  _landerLocal(c, t) {
+    const pl = this.plan, lf = c.sk.lf, rel = tt => S.V.sub(S.V.sub(S.shipPos(pl, tt), S.moonPos(tt)), S.V.mul(S.siteNormal(tt, pl.site), S.R_M));
+    const loc = r => new THREE.Vector3(S.V.dot(r, lf.E) * K, S.V.dot(r, lf.U) * K, -S.V.dot(r, lf.N) * K);
+    const off = t < pl.tLand ? loc(rel(t)) : V3(), v = t < pl.tLand ? loc(rel(t + 500)).sub(loc(rel(t - 500))) : V3();
+    const p = S.descentState(pl, t).pitch * D2R, hor = new THREE.Vector3(v.x, 0, v.z);
+    const nose = hor.lengthSq() > 1e-18 && t < pl.tLand ? hor.normalize().multiplyScalar(-Math.cos(p)).add(new THREE.Vector3(0, Math.sin(p), 0)).normalize() : new THREE.Vector3(0, 1, 0);
+    return { off, nose };
+  }
+  // Ground camera during the landing: a telephoto shot that finds the engine glow kilometres away, tracks the lander as
+  // it pitches up and comes down, widens as it nears, holds on touchdown, then eases back to the usual framing.
+  _landingCam(c, dt) {
+    const pl = this.plan, sv = this.surfaceView, dtl = pl && c.site === pl.site ? (c.t - pl.tLand) / 1000 : 1e9;
+    const on = !this.compare && !this._userLook && dtl > -LunarScene.LAND_VIS && dtl < 14;
+    if (on) {
+      const kit = this.kitFor(c.site), d = kit.landerHome.clone().add(this._landerLocal(c, c.t).off).add(new THREE.Vector3(0, 2.4e-6 - 3e-6, 0));
+      const hd = Math.hypot(d.x, d.z), dist = d.length(), yaw = Math.atan2(d.x, -d.z) / D2R, pitch = Math.atan2(d.y, hd) / D2R;
+      // telephoto while it is far; in the last minute the lens widens so the horizon and the dust come into the shot
+      // the lens is as long as it can be while the horizon stays at the bottom of the frame; it widens as the lander nears
+      const fovGoal = clamp(Math.max(5e-6 / dist / D2R / 0.07, pitch / 0.52 + 1), 9, 46), first = !this._landCam, g = first || this.reduceMotion || this._snapN > 0 ? 1 : 1 - Math.exp(-dt * 5);
+      sv.yaw += ((((yaw - sv.yaw) % 360) + 540) % 360 - 180) * g; sv.fov += (fovGoal - sv.fov) * g;
+      const pGoal = Math.max(pitch - 0.36 * sv.fov, Math.min(pitch - 0.2 * sv.fov, 0.32 * sv.fov)); // lander just above centre, horizon in frame when possible
+      sv.pitch += (clamp(pGoal, -25, 80) - sv.pitch) * g;
+      this._landCam = true; this._yawGoal = null;
+    } else if (this._landCam) {
+      this._landCam = false; this._settle = true;
+      if (!this._userLook) this._yawGoal = this.w / this.h < .8 ? this.kitFor(c.site).landerAz : this.defaultYaw(c.sk);
+    }
+    if (this._settle && !on) {
+      const g = this.reduceMotion ? 1 : 1 - Math.exp(-dt * 1.6), pg = this.w / this.h < .8 ? -7 : 4;
+      sv.pitch += (pg - sv.pitch) * g; sv.fov += (46 - sv.fov) * g;
+      if (Math.abs(sv.fov - 46) < .05 && Math.abs(sv.pitch - pg) < .05) this._settle = false;
+    }
+  }
   _target(c, dt) {
-    const m = this.scale;
-    if (m === 'surface') { const sv = this.surfaceView; if (sv.yaw == null) { sv.yaw = this.defaultYaw(c.sk); if (this.w / this.h < .8) { sv.yaw = this.kitFor(c.site).landerAz; sv.pitch = -7; } } if (this._yawGoal != null) { const df = ((this._yawGoal - sv.yaw + 540) % 360) - 180; sv.yaw += df * (this.reduceMotion || this._snapN > 0 ? 1 : 1 - Math.exp(-dt * 4)); if (Math.abs(df) < .3) this._yawGoal = null; } return this._surfacePose(c, sv.yaw, sv.pitch, sv.fov); }
+    const m = this.scale; if (m !== 'transit') this.povMix = 0;
+    if (m === 'surface') { const sv = this.surfaceView; if (sv.yaw == null) { sv.yaw = this.defaultYaw(c.sk); if (this.w / this.h < .8) { sv.yaw = this.kitFor(c.site).landerAz; sv.pitch = -7; } }
+      this._landingCam(c, dt);
+      if (this._yawGoal != null) { const df = ((this._yawGoal - sv.yaw + 540) % 360) - 180; sv.yaw += df * (this.reduceMotion || this._snapN > 0 ? 1 : 1 - Math.exp(-dt * 4)); if (Math.abs(df) < .3) this._yawGoal = null; } return this._surfacePose(c, sv.yaw, sv.pitch, sv.fov); }
     if (m === 'moon') { const v = this.views.moon;
       if (this._aim && c.U) { this._aim = false; const g = c.U.clone().addScaledVector(c.sunDir, .28).addScaledVector(c.moonP.clone().negate().normalize(), .12).normalize(); let up = d3(c.f.Z); if (Math.abs(up.dot(g)) > .85) up = c.moonP.clone().negate().normalize(); this._goal = { dir: g, up: up.addScaledVector(g, -up.dot(g)).normalize() }; }
       if (this._goal) { const k = this._fl || this._snapN > 0 ? 1 : 1 - Math.exp(-dt * 3.5); v.dir.copy(slerpDir(v.dir, this._goal.dir, k)); v.up.lerp(this._goal.up, k).addScaledVector(v.dir, -v.up.dot(v.dir)).normalize(); if (v.dir.dot(this._goal.dir) > .99999) this._goal = null; }
@@ -258,7 +316,10 @@ class LunarScene {
       const nearE = sp.length() < sp.distanceTo(c.moonP), ctr = nearE ? V3() : c.moonP, up = sp.clone().sub(ctr).normalize(), alt = Math.max(sp.distanceTo(ctr) - (nearE ? RE : RM), 0);
       let vv = S.V.sub(S.shipPos(pl, c.t + 2000), S.shipPos(pl, c.t - 2000)); if (!nearE) vv = S.V.sub(vv, S.V.sub(S.moonPos(c.t + 2000), S.moonPos(c.t - 2000)));
       let fwd = d3(vv); fwd.addScaledVector(up, -fwd.dot(up)); if (fwd.length() < 1e-7) fwd = this._povF ? this._povF.clone() : V3().crossVectors(up, new THREE.Vector3(0, 1, 0)); fwd.normalize(); this._povF = fwd.clone();
-      const back = 0.012 + alt * .9, h = 0.004 + alt * .35, pp = sp.clone().addScaledVector(up, h).addScaledVector(fwd, -back), look = sp.clone().addScaledVector(fwd, back * 1.6).addScaledVector(up, -h * .5), e = ease(clamp(this.povMix, 0, 1));
+      // near the lunar surface the chase camera closes in to a few tens of metres, so the lander is seen at its real size
+      // against the LOLA terrain instead of the oversized marker used in deep space
+      const near = this._povNear = nearE ? 0 : smooth(0.03, 0.002, alt);
+      const back = (0.012 + alt * .9) * (1 - near) + (0.00003 + alt * 0.03) * near, h = (0.004 + alt * .35) * (1 - near) + (0.00001 + alt * 0.012) * near, pp = sp.clone().addScaledVector(up, h).addScaledVector(fwd, -back), look = sp.clone().addScaledVector(fwd, back * 1.6).addScaledVector(up, -h * .5), e = ease(clamp(this.povMix, 0, 1));
       pose.pos.lerp(pp, e); pose.quat.slerp(lookQ(pp, look, up), e); pose.fov = 42 + 12 * e;
     }
     return pose;
@@ -268,9 +329,9 @@ class LunarScene {
     const focus = (mixS > 0 ? c.siteP : c.moonP).clone().sub(pose.pos), sd = c.sunP.clone().sub(mixS > 0 ? c.siteP : c.moonP).normalize();
     this.sunLight.target.position.copy(focus); this.sunLight.position.copy(focus).addScaledVector(sd, mixS > .5 ? 0.004 : 100); this.sunLight.castShadow = mixS > .5; this.sunLight.target.updateMatrixWorld();
     this.moonMesh.scale.setScalar(1 - 0.004 * mixS); this.earth.children[0].material.opacity = .06 + .34 * smooth(.3, 4, pose.pos.length() - RE); if (this.earth.material.userData.dAmt) this.earth.material.userData.dAmt.value = 1 - smooth(.5, 2, pose.pos.length() - RE);
-    const camMoon = pose.pos.distanceTo(c.moonP), aMoon = (1 - smooth(14, 60, camMoon)) * (1 - mixS), far = mixS < .9 && !(this.compare && this.compareMode === 'surface');
-    this.transitG.visible = far; this.moonC.visible = far; this.ship.visible = this.ship.visible && far; this.trail.visible = this.trail.visible && far;
-    const nearK = smooth(20, 90, camMoon), arrived = this.plan && c.t > this.plan.tA ? nearK : 1; this.ringL.material.opacity = .13 * nearK * (1 - (this.povMix || 0)); /* hidden onboard: seen edge-on it is a stray line */ const pv = 1 - (this.povMix || 0); this.doneE.material.opacity = .95 * arrived * pv; this.todoE.material.opacity = .26 * arrived * pv; this.sitesG.visible = aMoon > .01; this.links.visible = aMoon > .01; this.links.material.opacity = .42 * aMoon;
+    const camMoon = pose.pos.distanceTo(c.moonP), aMoon = (1 - smooth(14, 60, camMoon)) * (1 - mixS) * (1 - (this.povMix || 0)), far = mixS < .9 && !(this.compare && this.compareMode === 'surface');
+    this.transitG.visible = far; this.moonC.visible = far; this.ship.visible = this.ship.visible && (far || (this.povMix || 0) > .5); this.trail.visible = this.trail.visible && far; // onboard, the craft stays in view down to the surface
+    const nearK = smooth(20, 90, camMoon), arrived = this.plan && c.t > this.plan.tA ? nearK : 1; this.ringL.material.opacity = .13 * nearK * (1 - (this.povMix || 0)); /* hidden onboard: seen edge-on it is a stray line */ const pv = 1 - (this.povMix || 0); this.doneE.material.opacity = .95 * arrived * pv; this.doneL.material.opacity = .95 * pv; this.todoL.material.opacity = .26 * pv; this.todoE.material.opacity = .26 * arrived * pv; this.sitesG.visible = aMoon > .01; this.links.visible = aMoon > .01; this.links.material.opacity = .42 * aMoon;
     if (main) {
       for (const sp of this.sitesG.children) { const s = sp.userData.site, st = c.siteState[s.id], d = st.w.distanceTo(pose.pos), hot = s.id === this.selectedId || (this.hover && this.hover.site === s);
         const facing = d3(st.U).dot(pose.pos.clone().sub(st.w).normalize()); sp.scale.setScalar(d * (hot ? .034 : .02)); sp.material.opacity = aMoon * smooth(-.05, .12, facing) * (st.lit ? 1 : .75); }
@@ -283,14 +344,18 @@ class LunarScene {
     if (mixS > 0 && c.site) {
       const k = this.kitFor(c.site), sk = c.sk; k.group.visible = true; k.group.position.copy(c.siteP); k.group.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(c.E, c.U, c.N.clone().negate()));
       const es = sk.link ? 0.016 : 0.006; const gain = clamp(0.1 / Math.max(Math.sin(Math.max(sk.sunEl, .3) * D2R), .01), 1, 2.6); for (const m of k.mats) { m.color.copy(m.userData.base).multiplyScalar(sk.lit * (mixS < .999 ? 1 : m === k.terrain.material ? gain : Math.min(gain, 1.4))); m.emissive.setRGB(es * .7, es * .85, es * 1.15); m.transparent = mixS < 1; m.opacity = mixS; }
-      const mine = this.plan && this.plan.site === c.site, dtl = mine ? (c.t - this.plan.tLand) / 1000 : 1e9; k.lander.visible = mixS > .5 && dtl >= 0; k.beam.visible = k.sunPath.visible = k.earthPath.visible = mixS > .999; const dk = dtl < 0 ? smooth(-70, -8, dtl) : 1 - smooth(0, 45, dtl), dw = 1e-6 * (9 + 9 * smooth(-70, 45, dtl)); k.dust.material.opacity = .3 * dk * sk.lit * mixS; k.dust.visible = dk > .01; k.dust.scale.set(dw, dw * .24, 1); const b = k.beam.geometry.attributes.position, e = localDir(sk.earthAz, sk.earthEl).multiplyScalar(380).add(k.beamFrom);
+      const mine = this.plan && this.plan.site === c.site, dtl = mine ? (c.t - this.plan.tLand) / 1000 : 1e9;
+      const groundCam = (this.scale === 'surface' || this.compare) && (this.povMix || 0) < .5, descending = mine && groundCam && dtl < 0 && dtl > -LunarScene.LAND_VIS;
+      k.lander.visible = mixS > .5 && (dtl >= 0 || descending); k.sunPath.visible = k.earthPath.visible = mixS > .999; k.beam.visible = mixS > .999 && dtl >= 0;
+      this._updateLanding(k, c, pose, descending ? dtl : null, sk);
+      const b = k.beam.geometry.attributes.position, e = localDir(sk.earthAz, sk.earthEl).multiplyScalar(380).add(k.beamFrom);
       b.setXYZ(0, k.beamFrom.x, k.beamFrom.y, k.beamFrom.z); b.setXYZ(1, e.x, e.y, e.z); b.needsUpdate = true; k.beam.material.color.setHex(sk.link ? BLUE : 0x777777); k.beam.material.opacity = (sk.link ? .95 : .45) * mixS;
       if (Math.abs(c.t - k.pathT) > S.HOUR / 2) { k.pathT = c.t; const a = k.sunPath.geometry.attributes.position, a2 = k.earthPath.geometry.attributes.position;
         for (let i = 0; i < 140; i++) { const s1 = S.sky(c.t + i / 139 * 12 * S.DAY, c.site), s2 = S.sky(c.t + i / 139 * 27.3 * S.DAY, c.site), p1 = localDir(s1.sunAz, s1.sunEl).multiplyScalar(900), p2 = localDir(s2.earthAz, s2.earthEl).multiplyScalar(300); a.setXYZ(i, p1.x, p1.y, p1.z); a2.setXYZ(i, p2.x, p2.y, p2.z); }
         a.needsUpdate = a2.needsUpdate = true; }
       k.sunPath.material.opacity = .4 * mixS; k.earthPath.material.opacity = .5 * mixS;
     }
-    const pr = R.getPixelRatio(), H = this.h; R.setViewport(rect.x, H - rect.y - rect.h, rect.w, rect.h); R.setScissor(rect.x, H - rect.y - rect.h, rect.w, rect.h); R.setScissorTest(true); R.clear(); R.render(this.scene, cam);
+    const H = this.h; R.setViewport(rect.x, H - rect.y - rect.h, rect.w, rect.h); R.setScissor(rect.x, H - rect.y - rect.h, rect.w, rect.h); R.setScissorTest(true); R.clear(); R.render(this.scene, cam);
   }
   project(p, pose, rect) {
     pose = pose || this.pose; rect = rect || { x: 0, y: 0, w: this.w, h: this.h };
@@ -305,6 +370,7 @@ class LunarScene {
     if (this.onTick) this.onTick(dt); if (!this.plan && !this.site) return; if (this._snapN > 0) this._snapN--;
     const full = { x: 0, y: 0, w: this.w, h: this.h }; this.renderer.setScissorTest(false); this.renderer.clear();
     if (this.compare && this.compare.length && this.compareRects.length) {
+      if (this._skyOn) { this.renderer.setClearColor(0x000000); this.stars.material.opacity = 1; this._skyOn = false; }
       const mainPlan = this.plan; this.compare.forEach((pn, i) => { const rc = this.compareRects[i]; if (!rc || rc.w < 4) return; if (this.compareMode === 'auto' && pn.plan) { this.plan = pn.plan; this._dirty = true; const c3 = this._place(pn.t, pn.plan.site, false), ps = this._autoPose(c3, pn.plan), al = ps.pos.distanceTo(c3.moonP) - RM; this._draw(c3, ps, al < .07 && ps.pos.distanceTo(c3.siteP) < .3 ? 1 - smooth(0.004, 0.07, al) : 0, rc, true); return; } if (this.compareMode === 'route' && pn.plan) { this.plan = pn.plan; this._dirty = true; const c2 = this._place(pn.t, pn.plan.site, false), v = this.views.transit, tgt = this.arrivalP.clone().multiplyScalar(.5), pos = tgt.clone().addScaledVector(v.dir, this.arrivalP.length() * 1.5 * v.zoom * Math.max(1, 1.3 / (rc.w / rc.h))); this._draw(c2, { pos, quat: lookQ(pos, tgt, v.up), fov: 42 }, 0, rc, true); return; } const c = this._place(pn.t, pn.site, true);
         this._draw(c, this._surfacePose(c, c.sk.sunAz + this.compareView.yawOff, this.compareView.pitch, 50), 1, rc, false); }); if (mainPlan && this.plan !== mainPlan) { this.plan = mainPlan; this._dirty = true; }
       return;
@@ -314,15 +380,49 @@ class LunarScene {
       const alt = Math.exp(Math.log(a0) + (Math.log(a1) - Math.log(a0)) * e), dir = slerpDir(fl.d0.clone().normalize(), d1.clone().normalize(), e), er = fl.to === 'surface' ? e * e * e : fl.from === 'surface' ? 1 - Math.pow(1 - e, 3) : e;
       pose = { pos: c.moonP.clone().addScaledVector(dir, RM + alt), quat: fl.q0.clone().slerp(pose.quat, er), fov: fl.fov0 + (pose.fov - fl.fov0) * e }; if (fl.k >= 1) this._fl = null; }
     pose = this._shake(pose, c);
-    this.pose = pose; const alt = pose.pos.distanceTo(c.moonP) - RM, surf = this.scale === 'surface' || (fl && fl.from === 'surface') || (c.siteP && this.plan && c.site === this.plan.site && alt < 0.07 && pose.pos.distanceTo(c.siteP) < 0.3);
-    this.surfaceMix = surf ? 1 - smooth(0.004, 0.07, alt) : 0; this._draw(c, pose, this.surfaceMix, full, true);
-    const A = this.anchors, P = (p, r) => { const q = this.project(p); q.r = r ? r * q.pxPer : 0; return q; };
-    A.earth = P(V3(), RE); A.moon = P(c.moonP, RM); A.sun = P(c.sunP, 696); if (c.shipP) A.ship = P((this.povMix || 0) > .5 && this.craftG && this.craftG.visible ? c.shipP.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(pose.quat), (this._craftScale || 0) * 0.32) : c.shipP); if (this.arrivalP) A.arrival = P(this.arrivalP); A.ghostArrival = this.ghostArrP && this.ghostAlpha > .08 ? P(this.ghostArrP) : null;
-    A.sites = {}; const aM = this.sitesG.visible; for (const id in c.siteState) { const st = c.siteState[id], q = P(st.w); q.vis = q.vis && aM && d3(st.U).dot(pose.pos.clone().sub(st.w)) > 0; q.lit = st.lit; q.link = st.link; A.sites[id] = q; }
-    A.alts = this.alts.map((p, i) => { const a = this.altL[i].geometry.attributes.position, j = 215 + i * 45; return P(new THREE.Vector3(a.getX(j), a.getY(j), a.getZ(j))); });
-    if (this.surfaceMix > .5) { const k = this.kitFor(this.site); A.lander = P(k.beamFrom.clone().applyQuaternion(k.group.quaternion).add(k.group.position)); } else A.lander = null;
-    A.sky = c.sk; A.flying = !!this._fl; A.surfaceMix = this.surfaceMix; A.camMoon = pose.pos.distanceTo(c.moonP); A.ship && (A.ship.landed = this.plan && this.time >= this.plan.tLand);
+    this.pose = pose; this._sky(pose, c);
+    // the site terrain (radius 160 km) fades in with height and, when flying in onboard, with distance to the site
+    const alt = pose.pos.distanceTo(c.moonP) - RM, atSite = this.scale === 'surface' || (fl && fl.from === 'surface'), nearSite = c.siteP && this.plan && c.site === this.plan.site ? 1 - smooth(0.12, 0.2, pose.pos.distanceTo(c.siteP)) : 0;
+    this.surfaceMix = (1 - smooth(0.004, 0.07, alt)) * (atSite ? 1 : nearSite); this._draw(c, pose, this.surfaceMix, full, true);
+    const A = this.anchors, proj = (p, r) => { const q = this.project(p); q.r = r ? r * q.pxPer : 0; return q; };
+    A.earth = proj(V3(), RE); A.moon = proj(c.moonP, RM); A.sun = proj(c.sunP, 696); if (c.shipP) A.ship = proj((this.povMix || 0) > .5 && this.craftG && this.craftG.visible ? c.shipP.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(pose.quat), (this._craftScale || 0) * 0.32) : c.shipP); A.arrival = this.arrivalP && this.plan && c.t < this.plan.tA ? proj(this.arrivalP) : null; A.ghostArrival = this.ghostArrP && this.ghostAlpha > .08 ? proj(this.ghostArrP) : null;
+    A.sites = {}; const aM = this.sitesG.visible; for (const id in c.siteState) { const st = c.siteState[id], q = proj(st.w); q.vis = q.vis && aM && d3(st.U).dot(pose.pos.clone().sub(st.w)) > 0; q.lit = st.lit; q.link = st.link; A.sites[id] = q; }
+    A.alts = this.alts.map((p, i) => { const a = this.altL[i].geometry.attributes.position, j = 215 + i * 45; return proj(new THREE.Vector3(a.getX(j), a.getY(j), a.getZ(j))); });
+    if (this.surfaceMix > .5) { const k = this.kitFor(this.site); A.lander = proj(k.beamFrom.clone().applyQuaternion(k.group.quaternion).add(k.group.position)); } else A.lander = null;
+    A.sky = c.sk; A.flying = !!this._fl; A.surfaceMix = this.surfaceMix; A.camMoon = pose.pos.distanceTo(c.moonP); if (A.ship) A.ship.landed = !!this.plan && this.time >= this.plan.tLand;
     if (this.onFrame) this.onFrame(A, dt);
+  }
+  // ---------- the lander coming down at the site, seen from the ground: pose, engine, light on the terrain, dust
+  _updateLanding(k, c, pose, dtl, sk) {
+    const L = k.lander, dt = Math.min(this._dt || 0.016, 0.1), pl = this.plan;
+    let level = 0;
+    if (dtl != null) {
+      const ll = this._landerLocal(c, c.t); L.position.copy(k.landerHome).add(ll.off);
+      L.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ll.nose).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), k.landerYaw));
+      level = this.burnOverride != null ? 0 : S.burn(pl, c.t).level;
+    } else { L.position.copy(k.landerHome); L.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), k.landerYaw); }
+    const flick = 0.85 + 0.15 * Math.random(), altM = (L.position.y - k.landerHome.y) / 1e-6;
+    const camD = c.siteP.clone().add(L.position.clone().applyQuaternion(k.group.quaternion)).distanceTo(pose.pos) / 1e-6;
+    k.plume.visible = level > 0.01; k.plume.scale.set(level * 1.3, level * 11 * flick, level * 1.3); k.plume.material.opacity = 0.55 * level;
+    k.glow.visible = level > 0.01; k.glow.scale.setScalar(Math.max(5, camD * 0.018) * level * flick); k.glow.material.opacity = 0.95 * level;
+    k.engLight.intensity = 3 * level * flick;
+    // dust: sprays out flat and fast below ~40 m, stops the instant the engine cuts (no air to keep it up)
+    const D = k.dust;
+    if (level > 0.01 && altM < 40) {
+      const n = Math.round(22 * (1 - altM / 40) * level);
+      for (let i = 0; i < n; i++) { const a = Math.random() * 6.2832, r = Math.random() * 2.5e-6, v = (14 + 30 * Math.random()) * 1e-6;
+        D.emit(L.position.x + Math.cos(a) * r, k.landerHome.y + 0.25e-6, L.position.z + Math.sin(a) * r, Math.cos(a) * v, (0.2 + 1.6 * Math.random()) * 1e-6, Math.sin(a) * v, 0.9 + 1.4 * Math.random(), (0.8 + 1.6 * Math.random()) * 1e-6, 5); }
+    }
+    D.mat.uniforms.uScale.value = 1; D.mat.uniforms.uPx.value = this.h * this.renderer.getPixelRatio() / (2 * Math.tan(pose.fov * D2R / 2));
+    D.update(dt, 0.55 * (0.3 + 0.7 * sk.lit));
+  }
+  // Earth's sky during the climb: blue (or night navy) at the pad, fading to black by ~75 km while the stars come out
+  _sky(pose, c) {
+    const altE = pose.pos.length() - RE, atm = 1 - smooth(0.006, 0.075, altE);
+    if (atm <= 0.001) { if (this._skyOn) { this.renderer.setClearColor(0x000000); this.stars.material.opacity = 1; this._skyOn = false; } return; }
+    const up = pose.pos.clone().normalize(), day = smooth(-0.12, 0.08, c.sunP.clone().normalize().dot(up));
+    const col = (this._skyN || (this._skyN = new THREE.Color(0x0a1a38))).clone().lerp(this._skyD || (this._skyD = new THREE.Color(0x4a86cf)), day).multiplyScalar(atm);
+    this.renderer.setClearColor(col); this.stars.material.transparent = true; this.stars.material.opacity = 1 - atm * (0.35 + 0.65 * day); this._skyOn = true;
   }
   // ---------- detailed spacecraft (rocket that stages in flight, then the lander), engine light, exhaust, smoke
   _buildCraft() {
@@ -345,7 +445,7 @@ class LunarScene {
     if (tau < 20e3) ax = c.shipP.clone().normalize().lerp(ax, smooth(4e3, 20e3, tau)).normalize(); // lift off vertically
     this._axis.lerp(ax, this._snapN > 0 || this.reduceMotion ? 1 : 1 - Math.exp(-dt * 6)).normalize();
     G.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), this._axis);
-    const dd = c.shipP.distanceTo(pose.pos), s = dd * (0.05 + 0.17 * pov) * (rocketOn ? 1 : 5.2); this._craftScale = s;
+    const dd = c.shipP.distanceTo(pose.pos), s = dd * (0.05 + 0.17 * pov) * (rocketOn ? 1 : 5.2) * (1 - 0.74 * pov * (this._povNear || 0)); this._craftScale = s;
     G.scale.setScalar(s);
     this.rocket.visible = rocketOn; this.landerM.visible = !rocketOn;
     let engineY = 0;
@@ -393,14 +493,14 @@ class LunarScene {
     el.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; el.setPointerCapture(e.pointerId); });
     el.addEventListener('pointermove', e => {
       const b = el.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
-      if (!drag) { const h = this._pick(x, y); if ((h && h.type) !== (this.hover && this.hover.type) || (h && h.site) !== (this.hover && this.hover.site)) { this.hover = h; this.onHover && this.onHover(h); } el.style.cursor = h ? 'pointer' : 'grab'; return; }
+      if (!drag) { const h = this._pick(x, y); if ((h && h.type) !== (this.hover && this.hover.type) || (h && h.site) !== (this.hover && this.hover.site)) { this.hover = h; this.onHover?.(h); } el.style.cursor = h ? 'pointer' : 'grab'; return; }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
       if (this.compare && this.compareMode !== 'route') { this.compareView.yawOff -= dx * .12; this.compareView.pitch = clamp(this.compareView.pitch + dy * .12, -20, 60); if (this.compareMode === 'auto') { const v = this.views.transit, right = V3().crossVectors(v.up, v.dir).normalize(); v.dir.applyAxisAngle(v.up, -dx * .005).applyAxisAngle(right, -dy * .005).normalize(); v.up.applyAxisAngle(right, -dy * .005); v.up.addScaledVector(v.dir, -v.up.dot(v.dir)).normalize(); } }
-      else if (this.scale === 'surface' && !this.compare) { const sv = this.surfaceView, k = sv.fov / this.h; this._yawGoal = null; sv.yaw -= dx * k; sv.pitch = clamp(sv.pitch + dy * k, -25, 80); }
+      else if (this.scale === 'surface' && !this.compare) { const sv = this.surfaceView, k = sv.fov / this.h; this._yawGoal = null; this._userLook = true; this._settle = false; sv.yaw -= dx * k; sv.pitch = clamp(sv.pitch + dy * k, -25, 80); }
       else { const v = this.views[this.compare ? 'transit' : this.scale], right = V3().crossVectors(v.up, v.dir).normalize(); this._goal = null; v.dir.applyAxisAngle(v.up, -dx * .005).applyAxisAngle(right, -dy * .005).normalize(); v.up.applyAxisAngle(right, -dy * .005); v.up.addScaledVector(v.dir, -v.up.dot(v.dir)).normalize(); }
-      if (drag.moved > 4 && this.hover) { this.hover = null; this.onHover && this.onHover(null); }
+      if (drag.moved > 4 && this.hover) { this.hover = null; this.onHover?.(null); }
     });
-    el.addEventListener('pointerup', e => { const b = el.getBoundingClientRect(); if (drag && drag.moved < 5) { const h = this._pick(e.clientX - b.left, e.clientY - b.top); this.onPick && this.onPick(h); } drag = null; });
+    el.addEventListener('pointerup', e => { const b = el.getBoundingClientRect(); if (drag && drag.moved < 5) { const h = this._pick(e.clientX - b.left, e.clientY - b.top); this.onPick?.(h); } drag = null; });
     el.addEventListener('wheel', e => { e.preventDefault(); const f = Math.exp(e.deltaY * .0012); if (this.compare ? this.compareMode !== 'route' : this.scale === 'surface') this.surfaceView.fov = clamp(this.surfaceView.fov * f, 14, 75); else { const v = this.views[this.compare ? 'transit' : this.scale]; v.zoom = clamp(v.zoom * f, .2, 5); } }, { passive: false });
   }
 }

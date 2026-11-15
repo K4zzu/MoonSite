@@ -19,12 +19,12 @@ export default class LunarNavigator extends React.Component {
   KF = [0, .09, .38, .5, 1];
   SPEEDS = [[3600, '1 h/s'], [21600, '6 h/s'], [86400, '1 d/s']];
   componentDidMount() { this.boot(); window.addEventListener('keydown', this.onKey); }
-  componentWillUnmount() { this._unmounted = true; window.removeEventListener('keydown', this.onKey); Sound.engine(0); this._mro && this._mro.disconnect(); clearTimeout(this._bt); clearTimeout(this._gt); this.scene && this.scene.dispose(); }
+  componentWillUnmount() { this._unmounted = true; window.removeEventListener('keydown', this.onKey); Sound.engine(0); this._mro?.disconnect(); clearTimeout(this._bt); clearTimeout(this._gt); clearTimeout(this._cutT); this.scene?.dispose(); }
   componentDidUpdate() { this._els = null; this.applyLang(); this.posTut(); this._pst = null; }
   reduce() { return this.state.reduce ?? this.props.reduceMotion ?? false; }
   explainOn() { return this.state.explain ?? this.props.explain ?? false; }
-  seenTut() { try { return !!localStorage.getItem('lunarnav.tutorial'); } catch (e) { return true; } }
-  endTut() { try { localStorage.setItem('lunarnav.tutorial', '1'); } catch (e) {} const play = this._playAfterTut, cmp = this._cmpAfter; this._playAfterTut = this._cmpAfter = false; if (cmp) { this.scene.pov = false; this.scene.flyTo('transit', true); this.scene.snap(); } if (this._siteAfter) { this._siteAfter = false; this.setState({ tut: -1, pre: false, pop: 'site' }); return; } this.setState(Object.assign({ tut: -1, pre: false, playing: play && cmp ? true : this.state.playing }, cmp ? { compare: true, pov: false, scale: 'auto' } : {})); if (play && !cmp) this.beginPlay(); }
+  seenTut() { try { return !!localStorage.getItem('lunarnav.tutorial'); } catch { return true; } }
+  endTut() { try { localStorage.setItem('lunarnav.tutorial', '1'); } catch { /* private mode */ } const play = this._playAfterTut, cmp = this._cmpAfter; this._playAfterTut = this._cmpAfter = false; if (cmp) { this.scene.pov = false; this.scene.flyTo('transit', true); this.scene.snap(); } if (this._siteAfter) { this._siteAfter = false; this.setState({ tut: -1, pre: false, pop: 'site' }); return; } this.setState(Object.assign({ tut: -1, pre: false, playing: play && cmp ? true : this.state.playing }, cmp ? { compare: true, pov: false, scale: 'auto' } : {})); if (play && !cmp) this.beginPlay(); }
   posTut() {
     const root = this.root.current, i = this.state.tut, hl = root && root.querySelector('[data-tut-hl]'), card = root && root.querySelector('[data-tut-card]'); if (!hl || i < 0) return;
     const step = LunarUI.TUTORIAL[i], el = step.sel && root.querySelector(step.sel), rb = root.getBoundingClientRect(), z = rb.width / root.offsetWidth || 1, W = root.offsetWidth, H = root.offsetHeight, r = el ? el.getBoundingClientRect() : null, ok = r && r.width > 2;
@@ -41,8 +41,8 @@ export default class LunarNavigator extends React.Component {
   }
   lang() { return this.state.lang ?? this.props.language ?? 'en'; }
   tr(s) { return LunarUI ? LunarUI.tr(this.lang(), s) : s; }
-  applyLang() { LunarUI && LunarUI.applyLang(this); }
-  ping(x, y, color) { LunarUI && LunarUI.ping(this, x, y, color); }
+  applyLang() { LunarUI.applyLang(this); if (document.documentElement.lang !== this.lang()) document.documentElement.lang = this.lang(); }
+  ping(x, y, color) { LunarUI.ping(this, x, y, color); }
   setCam(follow, pov) { this.scene.follow = follow; this.scene.pov = pov; this.setState({ follow, pov }); }
   panePlan(p) { const S = this.S, pl = this.plan, s = this.siteById(p.siteId), key = s.id + s.lat + s.lon + '|' + p.dt + '|' + pl.launch + '|' + JSON.stringify(this.req); if (!this._pc || Object.keys(this._pc).length > 60) this._pc = {}; return this._pc[key] || (this._pc[key] = S.computePlan(pl.launch + p.dt * S.DAY, s, this.req)); }
   boot() {
@@ -78,8 +78,8 @@ export default class LunarNavigator extends React.Component {
     this.scene.setGhost(old); this.ghostTarget = 1; this.scene.setAlts([]); this.altTarget = 0; this.scene.altAlpha = 0; clearTimeout(this._gt);
     this.rp = { old, next, k: 0, f, dur: this.reduce() ? .45 : 2, slide: !opts.quick && old.launch !== next.launch, freeze: opts.freeze };
     const pct = v => Math.round(v) + '%', diffs = [], dd = Math.round((next.tLand - old.tLand) / S.DAY);
-    if (old.site.id !== next.site.id || old.site.name !== next.site.name) diffs.push({ label: 'Site', from: old.site.name.split(' (')[0], key: 'dSite', color: '#F3F1EC', delta: '' }), this.roll('dSite', 0, () => next.site.name.split(' (')[0], 0);
-    if (dd !== 0) diffs.push({ label: 'Arrival', from: S.fmtDate(old.tLand), key: 'dArr', color: '#F3F1EC', delta: `(${dd > 0 ? '+' : ''}${dd} d)` }), this.roll('dArr', next.tLand, S.fmtDate, old.tLand);
+    if (old.site.id !== next.site.id || old.site.name !== next.site.name) { diffs.push({ label: 'Site', from: old.site.name.split(' (')[0], key: 'dSite', color: '#F3F1EC', delta: '' }); this.roll('dSite', 0, () => next.site.name.split(' (')[0], 0); }
+    if (dd !== 0) { diffs.push({ label: 'Arrival', from: S.fmtDate(old.tLand), key: 'dArr', color: '#F3F1EC', delta: `(${dd > 0 ? '+' : ''}${dd} d)` }); this.roll('dArr', next.tLand, S.fmtDate, old.tLand); }
     diffs.push({ label: 'Sunlight', from: pct(old.sunPct), key: 'dSun', color: '#E8B95A', delta: '' }); this.roll('dSun', next.sunPct, pct, old.sunPct);
     diffs.push({ label: 'Earth link', from: pct(old.linkPct), key: 'dLink', color: '#6FA8F5', delta: '' }); this.roll('dLink', next.linkPct, pct, old.linkPct);
     const sa = this.scene.anchors.ship; if (sa && sa.vis && !this.state.compare) this.ping(sa.x, sa.y, '#E8B95A'); this.hold = null; this._force = true; this.syncPlanRolls(next); this.setState({ replanning: true, alts: [], diffs, pop: null, playing: false });
@@ -106,9 +106,13 @@ export default class LunarNavigator extends React.Component {
     if (this.rp) this.tickReplan(dt);
     else if (this.tw) { const w = this.tw; w.k = Math.min(1, w.k + dt / w.dur); const e = w.k < .5 ? 2 * w.k * w.k : 1 - Math.pow(-2 * w.k + 2, 2) / 2; this.t = w.a + (w.b - w.a) * e; if (w.k >= 1) this.tw = null; }
     else if (this.state.playing) {
-      const prev = this.t; const rate = Math.min(this.SPEEDS[this.state.speedIdx][0], LunarUI.eventRate(pl, this.t)); this.slow = rate < this.SPEEDS[this.state.speedIdx][0]; this.t = Math.min(pl.tEnd, this.t + dt * rate * 1000); for (const ev of [pl.tTLI - 240000, pl.tA - 240000, pl.tLand - 840000]) if (prev < ev && this.t > ev) this.t = ev + 1;
-      if (!this.state.compare) { const MN = 60000, x = e2 => prev < e2 && this.t >= e2; if (x(pl.launch + 10 * MN) && this.state.pov) this.setCam(true, false); if (x(pl.tLand - 13 * MN)) { if (this.state.scale !== 'transit') this.goScale('transit', true); this.setCam(true, true); } if (prev < pl.tA && this.t >= pl.tA && this.state.scale === 'transit') this.goScale('moon', true); if (prev < pl.tLand && this.t >= pl.tLand && this.state.scale !== 'surface') this.goScale('surface', true); }
+      const prev = this.t; const rate = Math.min(this.SPEEDS[this.state.speedIdx][0], LunarUI.eventRate(pl, this.t)); this.slow = rate < this.SPEEDS[this.state.speedIdx][0]; this.t = Math.min(pl.tEnd, this.t + dt * rate * 1000); for (const ev of [pl.tTLI - 240000, pl.tA - 240000, pl.tLand - (S.DEORBIT_S + 40) * 1000, pl.tLand - 840000, pl.tLand - 150000]) if (prev < ev && this.t > ev) this.t = ev + 1;
+      if (!this.state.compare) { const MN = 60000, x = e2 => prev < e2 && this.t >= e2; if (x(pl.launch + 10 * MN) && this.state.pov) this.setCam(true, false); if (x(pl.tLand - 13 * MN)) { if (this.state.scale !== 'transit') this.goScale('transit', true); this.setCam(true, true); } if (this.t > pl.tLand - 150000 && this.t < pl.tLand && this.state.scale !== 'surface' && !this._cutT) this.groundCut(); if (prev < pl.tA && this.t >= pl.tA && this.state.scale === 'transit') this.goScale('moon', true); if (prev < pl.tLand && this.t >= pl.tLand && this.state.scale !== 'surface' && !this._cutT) this.goScale('surface', true); }
       if (this.t >= pl.tEnd) this.setState({ playing: false });
+    }
+    { // landing shot: keep the ground camera clean (no surface figures or edge hints) until just after touchdown
+      const lnd = this.state.scale === 'surface' && !this.state.compare && this.t > pl.tLand - 160000 && this.t < pl.tLand + 8000;
+      if (lnd !== !!this.state.landing) this.setState({ landing: lnd });
     }
     sc.time = this.t; const k = this.reduce() ? 1 : 1 - Math.exp(-dt * 5);
     sc.ghostAlpha += (this.ghostTarget - sc.ghostAlpha) * k; sc.altAlpha += (this.altTarget - sc.altAlpha) * k;
@@ -133,7 +137,7 @@ export default class LunarNavigator extends React.Component {
       this.setTxt('sunState', sk.lit > .5 ? 'Sunlight' : sk.sunEl > -0.3 ? 'Sun behind terrain' : 'Night'); this.setDot('sun', sk.lit > .5);
       this.setTxt('linkState', sk.link ? 'Link to Earth' : sk.earthEl > 0 ? 'Earth behind terrain' : 'No link to Earth'); this.setDot('link', sk.link);
       const ph = t < pl.launch + 600000 ? 'Launch' : t < pl.tTLI ? 'Parking orbit' : t < pl.tA ? 'Coast' : t < pl.tLand - S.HOUR ? 'Lunar orbit' : t < pl.tLand ? 'Descent' : 'Surface operations';
-      LunarUI.updateStory(this, pl, t, sk); this.setTxt('phase', ph); const d = new Date(t); this.setTxt('clock', S.fmtDate(t) + ' · ' + String(d.getUTCHours()).padStart(2, '0') + ':00 UTC');
+      LunarUI.updateStory(this, pl, t, sk); this.setTxt('phase', ph); this.setTxt('distLabel', t >= pl.tA ? 'Altitude' : 'To the Moon'); const d = new Date(t); this.setTxt('clock', S.fmtDate(t) + ' · ' + String(d.getUTCHours()).padStart(2, '0') + ':00 UTC');
       if (this.state.cardId) { const s = this.siteById(this.state.cardId), k2 = s && S.sky(t, s); if (k2) { this.setTxt('cardSun', k2.lit > .5 ? 'Yes, now' : 'In shadow'); this.setDot('cardSun', k2.lit > .5); this.setTxt('cardLink', k2.link ? 'Yes, now' : 'Not visible'); this.setDot('cardLink', k2.link); } }
     }
     if (!this._els) { this._els = { a: Array.from(root.querySelectorAll('[data-anchor]')), r: Array.from(root.querySelectorAll('[data-roll]')), t: Array.from(root.querySelectorAll('[data-txt]')), d: Array.from(root.querySelectorAll('[data-dot]')), e: Array.from(root.querySelectorAll('[data-edge]')), fill: root.querySelector('[data-tl=fill]'), handle: root.querySelector('[data-tl=handle]') }; this._dirtyTxt = true; for (const k in this.rolls) this.rolls[k].s = null; }
@@ -144,7 +148,7 @@ export default class LunarNavigator extends React.Component {
     if (this._dirtyTxt) { this._dirtyTxt = false; for (const el of E.t) { const s0 = this.txts[el.dataset.txt], s = s0 == null ? null : this.tr(s0); if (s != null && el.textContent !== s) el.textContent = s; } for (const el of E.d) { const on = this.dots[el.dataset.dot]; if (on != null) el.style.opacity = on ? 1 : .22; } }
     const f = this.fracOf(pl, t) * 100; if (E.fill) E.fill.style.width = f + '%'; if (E.handle) E.handle.style.left = f + '%';
     const W = root.clientWidth, H = root.clientHeight, hov = this.hov, vcEl = this._vcEl || (this._vcEl = root.querySelector('[data-verdict]')); if (vcEl) this._vcTop = vcEl.offsetTop;
-    for (const el of E.e) { const k = el.dataset.edge, q = A[k], sk = A.sky, onScr = q && q.vis && q.x > 0 && q.x < W, show = scale === 'surface' && !A.flying && !this.state.compare && sk && !onScr && this.scene.surfaceView.yaw != null;
+    for (const el of E.e) { const k = el.dataset.edge, q = A[k], sk = A.sky, onScr = q && q.vis && q.x > 0 && q.x < W, show = scale === 'surface' && !A.flying && !this.state.compare && !this.state.landing && sk && !onScr && this.scene.surfaceView.yaw != null;
       if (show) { const side = (((k === 'sun' ? sk.sunAz : sk.earthAz) - this.scene.surfaceView.yaw + 540) % 360) - 180, name = this.tr(k === 'sun' ? 'Sun' : 'Earth'), s = side < 0 ? '‹ ' + name : name + ' ›'; if (el.textContent !== s) el.textContent = s; el.style.left = side < 0 ? '24px' : 'auto'; el.style.right = side < 0 ? 'auto' : '24px'; }
       el.style.opacity = show ? 1 : 0; el.style.pointerEvents = show ? 'auto' : 'none'; }
     for (const el of E.a) {
@@ -229,7 +233,7 @@ export default class LunarNavigator extends React.Component {
     else if (n === 'replan-viable') { go('transit', coast, { follow: false }); setTimeout(() => this.replan({ launch: o.launch - 1 * D }), 100); }
   }
   renderVals() {
-    const st = this.state, S = this.S, pl = this.plan, on = b => b ? 1 : 0, pe = b => b ? 'auto' : 'none', self = this, mb = st.mobile, seen = this.seenTut(); if (S) S.locale = LunarSim.locale = this.lang() === 'es' ? 'es-ES' : 'en-US';
+    const st = this.state, S = this.S, pl = this.plan, on = b => b ? 1 : 0, pe = b => b ? 'auto' : 'none', mb = st.mobile, seen = this.seenTut(); if (S) S.locale = LunarSim.locale = this.lang() === 'es' ? 'es-ES' : 'en-US';
     const scales = (st.compare ? [['auto', 'Full mission']] : []).concat([['transit', 'Earth to Moon'], ['moon', 'Moon'], ['surface', 'Surface']]).map(([id, label]) => ({ label, color: st.scale === id ? '#F3F1EC' : 'rgba(243,241,236,.6)', bar: on(st.scale === id), go: () => this.goScale(id) }));
     const out = {
       rootRef: this.root, canvasRef: this.canvas, trackRef: this.track, scales, hoverText: st.hoverText,
@@ -252,7 +256,7 @@ export default class LunarNavigator extends React.Component {
       compareOp: on(st.compare), comparePE: pe(st.compare), compareBg: st.compare ? 'rgba(243,241,236,.16)' : 'transparent', detailsBg: st.details ? 'rgba(243,241,236,.16)' : 'transparent',
       detailsX: st.details ? '0%' : '104%', detailsOp: on(st.details),
       sitePopOp: on(st.pop === 'site'), sitePopY: st.pop === 'site' ? '0px' : '-8px', sitePopPE: pe(st.pop === 'site'), datePopOp: on(st.pop === 'date'), datePopY: st.pop === 'date' ? '0px' : '-8px', datePopPE: pe(st.pop === 'date'),
-      surfOp: on(st.scale === 'surface'), transitOp: on(st.scale === 'transit'), transitPE: pe(st.scale === 'transit' && !st.compare), moonOp: on(st.scale === 'moon'),
+      surfOp: on(st.scale === 'surface' && !st.landing), transitOp: on(st.scale === 'transit'), transitPE: pe(st.scale === 'transit' && !st.compare), moonOp: on(st.scale === 'moon'),
       playIcon: st.playing ? 'none' : 'block', pauseIcon: st.playing ? 'flex' : 'none', speedLabel: this.SPEEDS[st.speedIdx][1], followLabel: st.pov ? 'Onboard view' : st.follow ? 'Following spacecraft' : 'Free camera', reduceLabel: this.reduce() ? 'on' : 'off',
       cLat: st.cLat, cLon: st.cLon, cErr: st.cErr, dOff: st.dOff, dOffLabel: st.dOff === 0 ? 'Current date' : `${st.dOff > 0 ? '+' : ''}${st.dOff} d`,
       stop: e => e.stopPropagation(), lookSun: () => this.scene.lookAz(S.sky(this.t, this.plan.site).sunAz), lookEarth: () => this.scene.lookAz(S.sky(this.t, this.plan.site).earthAz - 6),
@@ -313,7 +317,7 @@ export default class LunarNavigator extends React.Component {
   beginPlay(cmp) { if (cmp || this.state.compare) this.setState({ playing: true }); else this.startCountdown(); }
   startCountdown() {
     Sound.unlock(); this.cd = 10; this.t = this.scene.time = this.plan.launch; this.setCam(true, true); this.scene.flyTo('transit', true); this.scene.snap();
-    this.setState({ countdown: 10, playing: false, scale: 'transit', letterbox: true, toast: null }); Sound.beep(660); this.scene.burnOverride = 0; this.scene.smoke && this.scene.smoke.clear();
+    this.setState({ countdown: 10, playing: false, scale: 'transit', letterbox: true, toast: null }); Sound.beep(660); this.scene.burnOverride = 0; this.scene.smoke?.clear();
   }
   skipCountdown = () => { if (this.cd != null) { this.cd = 0.0001; } };
   tickCountdown(dt) {
@@ -326,43 +330,52 @@ export default class LunarNavigator extends React.Component {
     }
   }
   milestones() {
-    const p = this.plan, L = p.launch, M = 60000;
+    const p = this.plan, L = p.launch, M = 60000, S = this.S;
     return [
+      { t: L + 8e3, label: 'Tower cleared' },
       { t: L + STAGING.maxQ, label: 'Max-Q', sub: 'Maximum aerodynamic pressure' },
       { t: L + STAGING.boosterSep, label: 'Booster separation' },
       { t: L + STAGING.fairingSep, label: 'Fairing separation', sub: 'The lander unfolds its solar panels' },
-      { t: L + STAGING.meco, label: 'Main engine cut-off' },
-      { t: L + STAGING.coreSep, label: 'Stage separation' },
+      { t: L + STAGING.coreSep, label: 'Stage separation', sub: 'Main engine cut-off · second stage ignition' },
       { t: L + STAGING.orbit, label: 'Orbit insertion', sub: '185 km parking orbit' },
       { t: p.tTLI - 3 * M, label: 'Translunar injection', sub: 'Leaving Earth orbit' },
       { t: p.tTLI + 4 * M, label: 'Upper stage separation' },
       { t: p.tA - 3 * M, label: 'Lunar orbit insertion' },
-      { t: p.tLand - 12 * M, label: 'Powered descent' },
+      { t: p.tLand - S.DEORBIT_S * 1000 - 25e3, label: 'Deorbit burn', sub: 'Perilune lowered to 15 km' },
+      { t: p.tLand - S.PDI_S * 1000, label: 'Powered descent', sub: 'Braking from 1.7 km/s' },
+      { t: p.tLand - 200e3, label: 'High gate', sub: 'The lander pitches upright' },
       { t: p.tLand, label: 'Touchdown', sub: p.text },
     ];
+  }
+  /** Cut (through a short dip to black) from the onboard camera to a camera on the ground watching the lander come in. */
+  groundCut() {
+    if (this.state.scale === 'surface') return;
+    const go = () => { this._cutT = null; if (this._unmounted) return; this.scene.pov = false; this.scene.flyTo('surface', true); this.scene.snap(); this._force = true; this.setState({ scale: 'surface', pov: false, follow: true, pop: null, cardId: null }); };
+    clearTimeout(this._cutT); if (this.reduce()) { go(); return; }
+    this.setState({ dip: Date.now() }); this._cutT = setTimeout(go, 280);
   }
   showToast(ev) {
     const d = ev.t - this.plan.launch, h = Math.floor(d / 3600000), m = Math.floor(d / 60000) % 60, sec = Math.floor(d / 1000) % 60;
     const time = 'T+' + (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
     this.setState({ toast: { id: ev.t + ':' + Date.now(), label: this.tr(ev.label), sub: ev.sub ? this.tr(ev.sub) : '', time } });
-    if (ev.label !== 'Liftoff') Sound.chime();
+    if (ev.label === 'Touchdown') Sound.rumble(1.4); else if (ev.label !== 'Liftoff') Sound.chime();
   }
   checkMilestones() {
     const pl = this.plan; if (!pl) return; const last = this._lastT ?? this.t; this._lastT = this.t;
     const playing = this.state.playing && !this.state.compare;
     if (playing && this.t > last && this.t - last < 6 * 3600000) for (const ev of this.milestones()) if (last < ev.t && this.t >= ev.t) this.showToast(ev);
     Sound.engine(playing ? (this.S.burn(pl, this.t).level || 0) : 0);
-    const tau = this.t - pl.launch, td = this.t - pl.tLand, lb = playing && ((tau >= 0 && tau < 25000) || (td > -120000 && td < 15000));
+    const tau = this.t - pl.launch, td = this.t - pl.tLand, lb = playing && ((tau >= 0 && tau < 40000) || (td > -160000 && td < 20000));
     if (lb !== !!this.state.letterbox && this.cd == null) this.setState({ letterbox: lb });
   }
   onKey = e => {
     if (e.target && /input|textarea|select/i.test(e.target.tagName)) return; const st = this.state; if (!this.plan || st.intro || st.pre || st.tut >= 0) return;
     const v = this._v || {};
-    if (e.code === 'Space') { e.preventDefault(); if (this.cd != null) this.skipCountdown(); else v.togglePlay && v.togglePlay(); }
+    if (e.code === 'Space') { e.preventDefault(); if (this.cd != null) this.skipCountdown(); else v.togglePlay?.(); }
     else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); this.jumpTo(this.t + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 6 : 1) * 3600000); }
     else if (e.key === '1') this.goScale('transit'); else if (e.key === '2') this.goScale('moon'); else if (e.key === '3') this.goScale('surface');
-    else if (e.key === 'd' || e.key === 'D') v.toggleDetails && v.toggleDetails();
-    else if (e.key === 'e' || e.key === 'E') v.toggleExplain && v.toggleExplain();
+    else if (e.key === 'd' || e.key === 'D') v.toggleDetails?.();
+    else if (e.key === 'e' || e.key === 'E') v.toggleExplain?.();
     else if (e.key === 'm' || e.key === 'M') this.toggleSound();
   };
   toggleSound = () => { Sound.unlock(); Sound.set(!Sound.on); this.setState({ sound: Sound.on }); };
@@ -424,7 +437,7 @@ export default class LunarNavigator extends React.Component {
               <div data-roll="met" style={css("font-size:16px;font-variant-numeric:tabular-nums")}></div>
             </div>
             <div>
-              <div style={css("font-size:11px;color:rgba(243,241,236,.62)")}>
+              <div data-txt="distLabel" style={css("font-size:11px;color:rgba(243,241,236,.62)")}>
                 {"To the Moon"}
               </div>
               <div data-roll="dist" style={css("font-size:16px;font-variant-numeric:tabular-nums")}></div>
@@ -1215,7 +1228,7 @@ export default class LunarNavigator extends React.Component {
           ))}
         </div>
       </div>
-      <Cinematic countdown={this.state.countdown} toast={this.state.toast} flashKey={this.state.flash} letterbox={!!this.state.letterbox} onSkip={this.skipCountdown} reduce={this.reduce()} />
+      <Cinematic countdown={this.state.countdown} toast={this.state.toast} flashKey={this.state.flash} dipKey={this.state.dip} letterbox={!!this.state.letterbox} onSkip={this.skipCountdown} reduce={this.reduce()} />
     </div>
     );
   }

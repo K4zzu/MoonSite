@@ -3,7 +3,7 @@
 // but never replace the analytic model. A terrain horizon is used only when it comes from LOLA (not "sphere").
 
 const MOCK = /mock/i;
-const BASE = import.meta.env.BASE_URL || '/';
+const BASE = (import.meta.env && import.meta.env.BASE_URL) || '/';
 
 export const isRealEphemeris = d => !!d && !MOCK.test(d.source || '');
 export const isRealHorizon = d => !!d && !!d.horizon && d.horizon.source && d.horizon.source !== 'sphere';
@@ -22,13 +22,13 @@ export async function loadLunarData(sites, onEach) {
         if (m) { s.lat = m.lat; s.lon = m.lon > 180 ? m.lon - 360 : m.lon; s.position = m.position; s.verified = m.verified; }
       }
     }
-  } catch (e) { /* keep built-in coordinates */ }
+  } catch { /* keep built-in coordinates */ }
   await Promise.all(withData.map(async s => {
     try {
       const r = await fetch(`${BASE}data/${s.dataId}.json`);
       if (r.ok) { s.data = await r.json(); delete s._ter; }
-    } catch (e) { /* keep the analytic model for this site */ }
-    onEach && onEach(++done / withData.length);
+    } catch { /* keep the analytic model for this site */ }
+    onEach?.(++done / withData.length);
   }));
   return dataStatus(sites);
 }

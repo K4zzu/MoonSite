@@ -1,12 +1,16 @@
 {
   "name": "moonsite-web",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/sync-data.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/sync-data.mjs",
     "build": "vite build",
     "lint": "oxlint",
+    "pretest": "node scripts/sync-data.mjs",
+    "test": "node --test tests/",
     "preview": "vite preview"
   },
   "dependencies": {

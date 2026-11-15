@@ -15,7 +15,7 @@ python scripts/snap_sites.py --write         # landed sites: published coords; c
 python scripts/validate.py                   # writes ../VALIDATION.md (needs network for Horizons)
 ```
 
-Then copy `public/data` and `public/textures` into `../MoonSite-web/public/`.
+The web app copies `public/data` and `public/textures` into `../MoonSite-web/public/` by itself (`npm run dev` / `build`).
 
 Python 3.9+. The first three scripts use the standard library only. Output goes to `public/data/`.
 
@@ -38,7 +38,8 @@ Python 3.9+. The first three scripts use the standard library only. Output goes 
 | `terrain` | Only with LOLA: polar grid for the 3D surface. `na` azimuths x `nr` distances (log-spaced `d0_km`..`d1_km`), `h_m` heights in metres relative to the site, row-major by azimuth. |
 
 A body is visible when its elevation is above `horizon.el` in its azimuth.
-`src/lunar.ts` implements this plus time-to-sunset and mission metrics.
+The web app implements this in `MoonSite-web/src/lib/sim.js` (visibility, time to sunset, mission metrics) and reads the
+files with `MoonSite-web/src/lib/lunarData.js`; `npm test` there checks it against these files.
 
 ## Sources
 
@@ -52,8 +53,20 @@ A body is visible when its elevation is above `horizon.el` in its azimuth.
 - LOLA: horizon and terrain grid for the 8 sites inside `LDEM_75S_120M` with enough margin. The orientation
   check passes (Shackleton crater centre at about -2790 m). Chandrayaan-3 and the non-polar sites keep `"sphere"`.
 
+## Site placement
+
+- Landed missions: published landing coordinates.
+- Candidate regions with a clear crest near the nominal point: the highest LOLA point within 1.5 km.
+- Haworth and Malapert Massif have no such crest (at Haworth the terrain keeps rising for 12 km; at Malapert the
+  main summit is 6.7 km away), so `snap_sites.py` picks the best-lit point in 2027 with a slope under 8 deg within
+  10 km of the nominal point, using each candidate's own LOLA horizon (`BEST_LIT` in the script). Result: Haworth
+  3.9 km east (sunlight 34% -> 57%), Malapert 5.1 km west (41% -> 80%). Malapert gives up its 100% Earth view for
+  82%, in exchange for twice the sunlight.
+- After moving a site: `fetch_horizons.py --only <id>`, `make_horizons.py --only <id>`, update the entry in
+  `public/data/sites.json` (`--only` does not rewrite the index) and run `validate.py`.
+- If Python cannot verify the Horizons certificate (old CA bundle), point `SSL_CERT_FILE` at a current bundle;
+  do not turn verification off.
+
 ## Still to do
 
-- Haworth and Malapert Massif reach the 1.5 km snap radius: the crest continues further. Check them in QuickMap.
-  After moving a site run `fetch_horizons.py --only <id>` and `make_horizons.py` again.
 - Terrain horizons for sites north of 75°S would need a global LOLA product (for example the 118 m/px global DEM).

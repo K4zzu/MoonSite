@@ -33,7 +33,7 @@ function addDetail(mat, tex, k1, k2, amt) {
 function sphericalMapping(mat, key) {
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = sh => {
-    prev && prev(sh);
+    prev?.(sh);
     const helpers = `
 vec2 sphUv() { vec3 p = normalize(vOP); return vec2(atan(-p.z, p.x) / 6.28318530718 + 0.5, asin(clamp(p.y, -1.0, 1.0)) / 3.14159265359 + 0.5); }
 vec2 wrapD(vec2 d) { d.x -= floor(d.x + 0.5); return d; }`;
@@ -140,6 +140,7 @@ const ES = {
   'No Sun and no Earth. This is the hardest moment of the mission.': 'Sin Sol y sin Tierra. Es el momento más difícil de la misión.',
   'Ephemerides: JPL Horizons.': 'Efemérides: JPL Horizons.', 'Ephemerides: analytic model (lunar-data files are mock).': 'Efemérides: modelo analítico (los archivos de lunar-data son de prueba).', 'Terrain: LOLA horizons.': 'Terreno: horizontes LOLA.', 'Terrain: procedural.': 'Terreno: procedural.', 'Launch countdown': 'Cuenta regresiva', 'Go for launch': 'Listos para despegar', 'Internal power': 'Energía interna', 'Ignition sequence start': 'Inicia secuencia de ignición', 'Main engine start': 'Encendido de motores', 'Liftoff': 'Despegue', 'Skip countdown': 'Saltar cuenta regresiva', 'Max-Q': 'Max-Q', 'Maximum aerodynamic pressure': 'Máxima presión aerodinámica', 'Booster separation': 'Separación de propulsores', 'Fairing separation': 'Separación de la cofia', 'The lander unfolds its solar panels': 'El módulo despliega sus paneles solares', 'Main engine cut-off': 'Apagado del motor principal', 'Stage separation': 'Separación de etapa', 'Orbit insertion': 'Inserción en órbita', '185 km parking orbit': 'Órbita de aparcamiento a 185 km', 'Translunar injection': 'Inyección translunar', 'Leaving Earth orbit': 'Saliendo de la órbita terrestre', 'Upper stage separation': 'Separación de la etapa superior', 'Powered descent': 'Descenso propulsado', 'Touchdown': 'Contacto con la superficie', 'Sound: ': 'Sonido: ', 'Operational windows': 'Ventanas operativas', 'Both': 'Ambos', 'None during the surface stay.': 'Ninguna durante la estancia.', '1 m² vertical sun-tracking panel, 30 % efficient, averaged over the stay.': 'Panel vertical de 1 m² que sigue al Sol, 30 % de eficiencia, promedio de la estancia.', 'Mission report (PDF)': 'Reporte de misión (PDF)', 'Windows (CSV)': 'Ventanas (CSV)', 'Sky from the landing site': 'Cielo desde el sitio de alunizaje', 'Dotted lines: paths during the surface stay. Filled dot: above the terrain.': 'Líneas punteadas: trayectorias durante la estancia. Punto relleno: sobre el terreno.', 'Open in NASA Moon Trek': 'Abrir en NASA Moon Trek', 'Analytic model': 'Modelo analítico', 'Procedural': 'Procedural', 'Ephemerides: JPL Horizons. Terrain: LOLA horizons.': 'Efemérides: JPL Horizons. Terreno: horizontes LOLA.'
 };
+// strings added with the landing sequenceObject.assign(ES, {  '6 · Powered descent': '6 · Descenso propulsado', '6 · Final approach': '6 · Aproximación final',  'A short braking burn half an orbit before the site. The lander now falls from 100 km to 15 km without the engine.': 'Un breve encendido de frenado media órbita antes del sitio. Ahora el módulo cae de 100 km a 15 km sin motor.',  'The engine fires forward to cancel 1.7 km/s of orbital speed. The lander crosses 450 km of ground in 12 minutes.': 'El motor empuja hacia delante para anular 1,7 km/s de velocidad orbital. El módulo recorre 450 km de terreno en 12 minutos.',  'The lander pitches upright so its sensors can see the ground, and picks a safe spot to land.': 'El módulo se endereza para que sus sensores vean el suelo y elige un lugar seguro para posarse.',  'The engine blasts the dust away. With no air, it flies out in straight lines and nothing hangs in the sky.': 'El motor barre el polvo. Sin aire, sale disparado en línea recta y nada queda flotando.',  'Tower cleared': 'Torre despejada', 'Deorbit burn': 'Encendido de desorbitación', 'Perilune lowered to 15 km': 'Perilunio rebajado a 15 km', 'Braking from 1.7 km/s': 'Frenando desde 1,7 km/s',  'High gate': 'Puerta alta', 'The lander pitches upright': 'El módulo se endereza', 'Engine cut-off': 'Apagado del motor', 'Altitude': 'Altitud',  'Main engine cut-off · second stage ignition': 'Apagado del motor principal · encendido de la segunda etapa', 'Ground camera': 'Cámara en tierra',});
 const gain = s => s.replace('sunlight', 'luz solar').replace('full Earth link', 'enlace total con la Tierra').replace('Earth link', 'enlace con la Tierra');
 const RULES = [
   [/^Not viable — Sun sets (\d+) h after landing$/, m => 'No viable — el Sol se pone ' + m[1] + ' h después de alunizar'],
@@ -165,7 +166,7 @@ function applyLang(c) {
 }
 // ---------------- storytelling: what is happening right now, in one sentence
 function storyOf(c, pl, t, sk) {
-  const S = LunarSim, M = 60000, H = S.HOUR, r = c.rp;
+  const S = LunarSim, M = 60000, r = c.rp;
   if (r) return ['Replanning', r.k < .12 ? 'The plan changed. The old route stays as a grey line so you can compare.' : r.k < .55 ? (r.slide ? 'A new launch date means the Moon will be somewhere else on arrival. Watch its meeting point slide along the orbit.' : 'Same launch, new target on the Moon. The route is recalculated.') : r.k < .95 ? 'The new route is drawn from Earth to the new meeting point.' : 'Checking sunlight and Earth link at the landing site.'];
   if (c.hold && performance.now() < c.hold.until) return [c.hold.ch, c.hold.tx];
   if (t < pl.launch + 10 * M) return ['1 · Launch', 'The rocket climbs out of the atmosphere and tilts over to gain speed. In about nine minutes it is in orbit.'];
@@ -173,9 +174,12 @@ function storyOf(c, pl, t, sk) {
   if (t < pl.tTLI + 6 * M) return ['3 · Translunar burn', 'The engine fires for a few minutes. The orbit stretches into a long ellipse that reaches the Moon’s path.'];
   if (t < pl.tA - 10 * M) return ['4 · Coast', (t - pl.tTLI) / (pl.tA - pl.tTLI) < .82 ? 'Engine off. The spacecraft coasts towards where the Moon will be, slowing down as Earth pulls it back.' : 'The Moon’s gravity is taking over. The spacecraft speeds up again as it falls towards it.'];
   if (t < pl.tA + 10 * M) return ['5 · Lunar orbit insertion', 'A braking burn lets the Moon capture the spacecraft. Without it, it would fly past.'];
-  if (t < pl.tLand - H) return ['5 · Lunar orbit', 'The spacecraft circles the Moon 100 km up, passing over the poles, until the landing site comes around.'];
-  if (t < pl.tLand - 12 * M) return ['6 · Descent', 'It leaves orbit and drops towards the landing site.'];
-  if (t < pl.tLand + 2 * M) return ['6 · Landing', 'The engine burns against the fall. Dust flies as the lander touches down.'];
+  const s = (pl.tLand - t) / 1000;
+  if (s > S.DEORBIT_S + 30) return ['5 · Lunar orbit', 'The spacecraft circles the Moon 100 km up, passing over the poles, until the landing site comes around.'];
+  if (s > S.PDI_S) return ['6 · Descent', 'A short braking burn half an orbit before the site. The lander now falls from 100 km to 15 km without the engine.'];
+  if (s > 200) return ['6 · Powered descent', 'The engine fires forward to cancel 1.7 km/s of orbital speed. The lander crosses 450 km of ground in 12 minutes.'];
+  if (s > 40) return ['6 · Final approach', 'The lander pitches upright so its sensors can see the ground, and picks a safe spot to land.'];
+  if (s > -60) return ['6 · Landing', 'The engine blasts the dust away. With no air, it flies out in straight lines and nothing hangs in the sky.'];
   const lit = sk.lit > .5;
   return ['7 · Surface operations', lit && sk.link ? 'On the ground. The Sun gives power and Earth is in view, so the lander can work and talk.' : lit ? 'There is power, but terrain hides Earth. No contact until Earth rises above the ridge.' : sk.link ? 'The Sun is behind terrain. The lander runs on batteries and waits for sunrise.' : 'No Sun and no Earth. This is the hardest moment of the mission.'];
 }
@@ -193,9 +197,14 @@ function ping(c, x, y, color) {
   el.style.transition = 'transform 1s cubic-bezier(.2,.7,.2,1), opacity 1s'; el.style.transform = base + 'scale(3.4)'; el.style.opacity = 0;
 }
 // cinematic time: playback slows down for the moments worth watching (seconds of mission per second)
+// Launch: the first seconds near real time so the rocket feels heavy, then faster, easing off around each staging event.
+// Landing: deorbit, powered descent, then the final 150 s seen from the ground, and a short hold after touchdown.
 function eventRate(pl, t) {
-  const M = 60000, d = t - pl.launch, l = pl.tLand - t;
-  if (d >= 0 && d < 10 * M) return 40; if (Math.abs(t - pl.tTLI) < 4 * M) return 30; if (Math.abs(t - pl.tA) < 4 * M) return 30;
-  if (l > 0 && l < 2 * M) return 8; if (l > 0 && l < 14 * M) return 60; if (l <= 0 && l > -1.5 * M) return 10; return 1e9;
+  const M = 60000, d = (t - pl.launch) / 1000, s = (pl.tLand - t) / 1000, near = (x, c, w) => Math.abs(x - c) < w;
+  if (d >= 0 && d < 600) return d < 10 ? 2.5 : d < 40 ? 10 : near(d, 72, 5) || near(d, 150, 7) || near(d, 210, 7) || (d > 498 && d < 520) ? 12 : 40;
+  if (Math.abs(t - pl.tTLI) < 4 * M) return 30; if (Math.abs(t - pl.tA) < 4 * M) return 30;
+  if (near(s, LunarSim.DEORBIT_S, 40)) return 20;
+  if (s > 0 && s < 40) return 4.5; if (s > 0 && s < 150) return 9; if (s > 0 && s < 840) return 45;
+  if (s <= 0 && s > -20) return 4; if (s <= 0 && s > -90) return 15; return 1e9;
 }
 export const LunarUI = { MISSIONS, TUTORIAL, tr, applyLang, updateStory, ping, eventRate };

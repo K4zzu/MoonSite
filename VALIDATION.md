@@ -1,6 +1,6 @@
 # Validation
 
-Generated 2026-11-15 05:32 UTC by `lunar-data/scripts/validate.py`.
+Generated 2026-11-15 15:37 UTC by `lunar-data/scripts/validate.py`.
 
 ## 1. Interpolation against independent Horizons queries
 
@@ -23,9 +23,9 @@ Share of hours in 2027 with the Sun centre above the terrain horizon (2 m above 
 
 | Site | Horizon source | Sun above terrain | Earth above terrain | Longest night |
 |---|---|---|---|---|
-| Haworth | LOLA LDEM_75S_120M | 34.4% | 47.0% | 563 h |
+| Haworth | LOLA LDEM_75S_120M | 56.5% | 58.4% | 416 h |
 | de Gerlache Rim | LOLA LDEM_75S_120M | 83.0% | 54.9% | 258 h |
-| Malapert Massif | LOLA LDEM_75S_120M | 40.9% | 100.0% | 456 h |
+| Malapert Massif | LOLA LDEM_75S_120M | 80.3% | 81.7% | 273 h |
 | Shackleton Rim | LOLA LDEM_75S_120M | 83.3% | 49.6% | 226 h |
 | Shackleton connecting ridge | LOLA LDEM_75S_120M | 86.0% | 50.7% | 308 h |
 | Nobile rim | LOLA LDEM_75S_120M | 65.6% | 88.7% | 302 h |

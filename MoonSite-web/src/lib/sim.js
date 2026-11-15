@@ -52,9 +52,9 @@ const SITES = [
   { id: 'shackleton', dataId: 'shackleton-rim', name: 'Shackleton Rim', group: 'South pole candidates', lat: -89.78, lon: -155.7, relief: 1.0, drop: 1.5, seed: 11 },
   { id: 'ridge', dataId: 'shackleton-ridge', name: 'Connecting Ridge', group: 'South pole candidates', lat: -89.45, lon: -137.3, relief: 1.1, drop: 1.3, seed: 23 },
   { id: 'nobile', dataId: 'nobile-rim', name: 'Nobile Rim', group: 'South pole candidates', lat: -85.43, lon: 31.6, relief: 0.8, drop: 1.6, seed: 37 },
-  { id: 'malapert', dataId: 'malapert-massif', name: 'Malapert Massif', group: 'South pole candidates', lat: -85.96, lon: -1.0, relief: 0.7, drop: 2.2, seed: 41 },
+  { id: 'malapert', dataId: 'malapert-massif', name: 'Malapert Massif', group: 'South pole candidates', lat: -85.9526, lon: -3.382, relief: 0.7, drop: 2.2, seed: 41 },
   { id: 'gerlache', dataId: 'de-gerlache-rim', name: 'de Gerlache Rim', group: 'South pole candidates', lat: -88.67, lon: -68.4, relief: 1.2, drop: 1.0, seed: 53 },
-  { id: 'haworth', dataId: 'haworth', name: 'Haworth', group: 'South pole candidates', lat: -86.75, lon: -22.8, relief: 1.6, drop: 0.2, seed: 67 },
+  { id: 'haworth', dataId: 'haworth', name: 'Haworth', group: 'South pole candidates', lat: -86.7725, lon: -20.566, relief: 1.6, drop: 0.2, seed: 67 },
   { id: 'im1', dataId: 'malapert-a', name: 'Malapert A (IM-1)', group: 'CLPS', lat: -80.13, lon: 1.44, relief: 0.6, drop: 0.3, seed: 71 },
   { id: 'im2', dataId: 'mons-mouton', name: 'Mons Mouton (IM-2)', group: 'CLPS', lat: -84.79, lon: 29.20, relief: 0.9, drop: 0.4, seed: 79 },
   { id: 'crisium', dataId: 'blue-ghost-1', name: 'Mare Crisium (Blue Ghost)', group: 'CLPS', lat: 18.56, lon: 61.81, relief: 0.2, drop: 0, seed: 83 },
@@ -131,6 +131,23 @@ function nextChange(t, site, key) { // hours until lit / link flips (null if > 3
 
 // ---- mission: direct transfer, two-body (Earth-centred conic, lunar arrival patched)
 const R0 = R_E + 185, RLO = R_M + 100, PARK = 1.5 * HOUR, LOITER = 24 * HOUR, DESC = HOUR, ASCENT = 9 * 60000;
+// Landing profile (seconds before touchdown), modelled on Apollo / CLPS: a deorbit burn half an orbit before landing
+// lowers the perilune from 100 km to 15 km; powered descent starts there (PDI, ~450 km uprange), the lander pitches up
+// at high gate and comes down almost vertically for the last few hundred metres.
+const PDI_S = 720, DEORBIT_S = DESC / 1000, PDI_ALT = 15;
+function descentAlt(s) { // km above the mean surface
+  if (s <= 0) return 0;
+  if (s >= DEORBIT_S) return RLO - R_M;
+  if (s >= PDI_S) return PDI_ALT + (RLO - R_M - PDI_ALT) * (1 - Math.cos(Math.PI * (s - PDI_S) / (DEORBIT_S - PDI_S))) / 2;
+  const x = s / PDI_S; return PDI_ALT * x * x * (3 - 2 * x);
+}
+// Orbit phase (rad) from the point above the site. Constant rate in orbit and while coasting down; during powered
+// descent the ground speed falls as (s/PDI)^1.5, so the phase and its rate stay continuous all the way to zero.
+function lunarPhase(nLO, s) {
+  if (s <= 0) return 0;
+  const p0 = nLO * PDI_S / 2.5;
+  return s < PDI_S ? -p0 * Math.pow(s / PDI_S, 2.5) : -p0 - nLO * (s - PDI_S);
+}
 const DEFAULT_REQ = { duration: 14, maxDark: 48, minLink: 50 };
 function computePlan(launch, site, req) {
   req = Object.assign({}, DEFAULT_REQ, req);
@@ -168,17 +185,27 @@ function shipPos(pl, t) {
     }
     return V.add(V.mul(pl.P, r * Math.cos(th)), V.mul(pl.Q, r * Math.sin(th)));
   }
-  const lunar = tt => {
-    const ph = pl.nLO * (tt - pl.tLand) / 1000, o = V.add(V.mul(pl.nS, RLO * Math.cos(ph)), V.mul(pl.b, RLO * Math.sin(ph)));
-    const w = smooth(pl.tLand - DESC, pl.tLand, tt);
-    return V.add(moonPos(tt), w > 0 ? V.lerp(o, V.mul(siteNormal(tt, pl.site), R_M), w) : o);
-  };
-  if (t >= pl.tA) return lunar(Math.min(t, pl.tLand + 1e15));
+  if (t >= pl.tA) return V.add(moonPos(t), lunarRel(pl, t));
   const M = pl.n * (t - pl.tTLI) / 1000; let E = Math.PI;
   for (let i = 0; i < 60; i++) { const dE = (E - pl.e * Math.sin(E) - M) / (1 - pl.e * Math.cos(E)); E -= dE; if (Math.abs(dE) < 1e-13) break; }
   const k = V.add(V.mul(pl.P, pl.a * (Math.cos(E) - pl.e)), V.mul(pl.Q, pl.a * Math.sqrt(1 - pl.e * pl.e) * Math.sin(E)));
   const w = smooth(pl.tA - 5 * HOUR, pl.tA, t);
-  return w > 0 ? V.lerp(k, V.add(moonPos(t), V.mul(pl.nS, RLO * Math.cos(pl.nLO * (pl.tA - pl.tLand) / 1000)), V.mul(pl.b, RLO * Math.sin(pl.nLO * (pl.tA - pl.tLand) / 1000))), w) : k;
+  return w > 0 ? V.lerp(k, V.add(moonPos(t), pl.relA || (pl.relA = lunarRel(pl, pl.tA))), w) : k;
+}
+// Position relative to the Moon's centre once in lunar orbit: polar orbit over the site, deorbit coast, powered descent.
+// The orbit plane is inertial; during the last hour it turns with the Moon so the track ends exactly on the site.
+function lunarRel(pl, t) {
+  const s = (pl.tLand - t) / 1000;
+  if (s <= 0) return V.mul(siteNormal(t, pl.site), R_M);
+  let ax = pl.nS, b = pl.b;
+  if (s < DEORBIT_S) { ax = V.unit(V.lerp(pl.nS, siteNormal(t, pl.site), smooth(DEORBIT_S, 0, s))); b = V.unit(V.sub(pl.b, V.mul(ax, V.dot(pl.b, ax)))); }
+  const ph = lunarPhase(pl.nLO, s), r = R_M + descentAlt(s);
+  return V.add(V.mul(ax, r * Math.cos(ph)), V.mul(b, r * Math.sin(ph)));
+}
+/** Descent state for the cinematic: seconds to touchdown, altitude (km), pitch of the thrust axis above horizontal (deg). */
+function descentState(pl, t) {
+  const s = (pl.tLand - t) / 1000;
+  return { s, alt: descentAlt(s), pitch: 18 + 72 * smooth(200, 45, s) };
 }
 const shipSpeed = (pl, t) => t >= pl.tLand ? 0 : V.len(V.sub(shipPos(pl, t + 5000), shipPos(pl, t - 5000))) / 10;
 const NS = 168;
@@ -243,7 +270,18 @@ const loc = () => LunarSim.locale || 'en-US';
 const fmtDur = h => h == null ? '30+ d' : h < 72 ? `${Math.round(h)} h` : `${Math.round(h / 24)} d`;
 const fmtDate = t => new Date(t).toLocaleDateString(loc(), { month: 'short', day: 'numeric', timeZone: 'UTC' });
 const fmtDateY = t => new Date(t).toLocaleDateString(loc(), { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-function burn(pl, t) { const M = 60000; if (t >= pl.launch && t < pl.launch + 9 * M) return { level: 1 - smooth(7 * M, 9 * M, t - pl.launch), kind: 'ascent' }; if (Math.abs(t - pl.tTLI) < 3 * M) return { level: 1, kind: 'tli' }; if (Math.abs(t - pl.tA) < 3 * M) return { level: 1, kind: 'loi' }; if (t > pl.tLand - 12 * M && t < pl.tLand) return { level: 1, kind: 'descent' }; return { level: 0 }; }
+// Engine state: ascent (first stage to MECO, a short coast at stage separation, second stage to orbit), translunar
+// injection, lunar orbit insertion, the deorbit burn and powered descent (throttled down after high gate, cut at contact).
+const MECO = 505e3, IGN2 = 512e3;
+function burn(pl, t) {
+  const M = 60000, tau = t - pl.launch, s = (pl.tLand - t) / 1000;
+  if (tau >= 0 && tau < ASCENT) return tau < MECO ? { level: 1, kind: 'ascent' } : tau < IGN2 ? { level: 0, kind: 'ascent' } : { level: 0.85 * (1 - smooth(ASCENT - 8e3, ASCENT, tau)), kind: 'ascent' };
+  if (Math.abs(t - pl.tTLI) < 3 * M) return { level: 1, kind: 'tli' };
+  if (Math.abs(t - pl.tA) < 3 * M) return { level: 1, kind: 'loi' };
+  if (Math.abs(s - DEORBIT_S) < 25) return { level: 0.7, kind: 'deorbit' };
+  if (s > 0 && s < PDI_S) return { level: s > 200 ? 1 : 0.55 + 0.45 * smooth(60, 200, s), kind: 'descent' };
+  return { level: 0 };
+}
 
-export const LunarSim = { ASCENT, burn, V, R_E, R_M, AU, HOUR, DAY, SITES, DEFAULT_REQ, RANK, customSite, sunPos, moonPos, moonFrame, siteNormal, localFrame, terrainOf, sky, nextChange, computePlan, windows, shipPos, shipSpeed, evaluate, alternatives, fmtDur, fmtDate, fmtDateY, clamp, smooth, locale: 'en-US' };
+export const LunarSim = { ASCENT, PDI_S, DEORBIT_S, burn, descentState, descentAlt, V, R_E, R_M, AU, HOUR, DAY, SITES, DEFAULT_REQ, RANK, customSite, sunPos, moonPos, moonFrame, siteNormal, localFrame, terrainOf, sky, nextChange, computePlan, windows, shipPos, shipSpeed, evaluate, alternatives, fmtDur, fmtDate, fmtDateY, clamp, smooth, locale: 'en-US' };
 export default LunarSim;

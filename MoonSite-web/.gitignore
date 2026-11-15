@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Generated NASA data: copied from ../lunar-data/public by scripts/sync-data.mjs (predev / prebuild / pretest)
+/public/data/
+/public/textures/

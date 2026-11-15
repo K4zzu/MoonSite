@@ -1,7 +1,7 @@
 // Cinematic layer: launch countdown, liftoff flash, letterbox bars and milestone call-outs.
 const STATUS = n => n > 6 ? 'Go for launch' : n > 3 ? 'Internal power' : n === 3 ? 'Ignition sequence start' : n > 0 ? 'Main engine start' : 'Liftoff';
 
-export default function Cinematic({ countdown, toast, flashKey, letterbox, onSkip, reduce }) {
+export default function Cinematic({ countdown, toast, flashKey, dipKey, letterbox, onSkip, reduce }) {
   const cd = countdown != null, n = cd ? countdown : 0;
   return (
     <>
@@ -32,6 +32,9 @@ export default function Cinematic({ countdown, toast, flashKey, letterbox, onSki
 
       {/* liftoff flash */}
       {flashKey ? <div key={flashKey} style={{ position: 'absolute', inset: 0, background: '#fff6e6', pointerEvents: 'none', zIndex: 8, animation: reduce ? 'none' : 'lnflash 1.1s ease-out forwards', opacity: 0 }} /> : null}
+
+      {/* dip to black: hides the cut from the onboard camera to the ground camera */}
+      {dipKey && !reduce ? <div key={"d" + dipKey} style={{ position: "absolute", inset: 0, background: "#000", pointerEvents: "none", zIndex: 6, animation: "lndip .75s ease-in-out forwards", opacity: 0 }} /> : null}
 
       {/* milestone call-out */}
       {toast ? (
